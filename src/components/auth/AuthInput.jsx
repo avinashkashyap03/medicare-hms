@@ -8,6 +8,7 @@ function AuthInput({
   value,
   onChange,
   autoComplete,
+  required = true,
   children,
 }) {
   return (
@@ -24,7 +25,7 @@ function AuthInput({
           value={value}
           onChange={onChange}
           autoComplete={autoComplete}
-          required
+          required={required}
         />
         {children}
       </div>

@@ -1,13 +1,14 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { BiLogOut } from 'react-icons/bi';
 import { useAuth } from '../../context/AuthContext.jsx';
 
 function Dashboard() {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const handleSignOut = async () => {
     await signOut();
-    window.location.href = '/';
+    navigate('/');
   };
 
   return (

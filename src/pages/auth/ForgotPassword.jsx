@@ -4,26 +4,20 @@ import { BiArrowBack, BiEnvelope, BiSend } from 'react-icons/bi';
 import AuthInput from '../../components/auth/AuthInput.jsx';
 import AuthLayout from '../../components/auth/AuthLayout.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useAuthSubmit } from '../../hooks/useAuthSubmit.js';
 
 function ForgotPassword() {
   const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { resetPassword } = useAuth();
+  const { error, loading, run } = useAuthSubmit();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      await resetPassword(email);
-      setSubmitted(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    const result = await run(() =>
+      resetPassword(email, `${window.location.origin}/reset-password`)
+    );
+    if (result !== null) setSubmitted(true);
   };
 
   return (

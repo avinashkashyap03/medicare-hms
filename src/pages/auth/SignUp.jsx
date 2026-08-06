@@ -11,6 +11,8 @@ import {
 import AuthInput from '../../components/auth/AuthInput.jsx';
 import AuthLayout from '../../components/auth/AuthLayout.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useAuthSubmit } from '../../hooks/useAuthSubmit.js';
+import { validatePassword } from '../../utils/auth.js';
 
 function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
@@ -19,33 +21,38 @@ function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const [checkEmail, setCheckEmail] = useState(false);
   const { signUp } = useAuth();
+  const { error, loading, run, setError } = useAuthSubmit();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
 
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
     }
 
-    setLoading(true);
-    try {
-      const needsConfirmation = await signUp(email, password);
+    if (!agreeTerms) {
+      setError('Please accept the terms of service to continue.');
+      return;
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
+    const needsConfirmation = await run(() => signUp(email, password, name));
+    if (needsConfirmation !== null) {
       if (needsConfirmation) {
         setCheckEmail(true);
       } else {
         navigate('/');
       }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -138,7 +145,12 @@ function SignUp() {
         </AuthInput>
 
         <label className="auth-checkbox auth-checkbox--inline">
-          <input type="checkbox" />
+          <input
+            type="checkbox"
+            checked={agreeTerms}
+            onChange={(e) => setAgreeTerms(e.target.checked)}
+            required
+          />
           <span>I agree to the terms of service and privacy policy</span>
         </label>
 

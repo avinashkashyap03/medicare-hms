@@ -10,28 +10,21 @@ import {
 import AuthInput from '../../components/auth/AuthInput.jsx';
 import AuthLayout from '../../components/auth/AuthLayout.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useAuthSubmit } from '../../hooks/useAuthSubmit.js';
 
 function SignIn() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const { signIn } = useAuth();
+  const { error, loading, run } = useAuthSubmit();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      await signIn(email, password);
-      navigate('/');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    const result = await run(() => signIn(email, password, rememberMe));
+    if (result !== null) navigate('/dashboard');
   };
 
   return (
@@ -77,7 +70,11 @@ function SignIn() {
 
         <div className="auth-options">
           <label className="auth-checkbox">
-            <input type="checkbox" />
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
             <span>Remember me</span>
           </label>
           <Link to="/forgot-password" className="auth-link">
