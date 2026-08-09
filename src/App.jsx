@@ -1,12 +1,12 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext.jsx';
-import SignIn from './pages/auth/SignIn.jsx';
-import SignUp from './pages/auth/SignUp.jsx';
-import ForgotPassword from './pages/auth/ForgotPassword.jsx';
-import ResetPassword from './pages/auth/ResetPassword.jsx';
-import Dashboard from './pages/dashboard/Dashboard.jsx';
-import ProtectedRoute from './components/routing/ProtectedRoute.jsx';
-import PublicOnlyRoute from './components/routing/PublicOnlyRoute.jsx';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider } from '@/context/AuthContext.jsx';
+import SignIn from '@/pages/auth/SignIn.jsx';
+import SignUp from '@/pages/auth/SignUp.jsx';
+import ForgotPassword from '@/pages/auth/ForgotPassword.jsx';
+import ResetPassword from '@/pages/auth/ResetPassword.jsx';
+import Dashboard from '@/pages/dashboard/Dashboard.jsx';
+import ProtectedRoute from '@/components/routing/ProtectedRoute.jsx';
+import PublicOnlyRoute from '@/components/routing/PublicOnlyRoute.jsx';
 
 function App() {
   return (
@@ -25,6 +25,8 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
           </Route>
+
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

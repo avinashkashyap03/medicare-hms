@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getFriendlyAuthError } from '../utils/auth.js';
+import { getFriendlyAuthError } from '@/utils/auth.js';
 
 export function useAuthSubmit() {
   const [error, setError] = useState('');
@@ -9,10 +9,18 @@ export function useAuthSubmit() {
     setError('');
     setLoading(true);
     try {
-      return await fn();
+      const data = await fn();
+      return { ok: true, data, error: null };
     } catch (err) {
-      setError(getFriendlyAuthError(err));
-      return null;
+      const message = getFriendlyAuthError(err);
+      if (message) {
+        setError(message);
+        return { ok: false, data: null, error: message };
+      }
+      console.error('Unhandled error in auth submit:', err);
+      const fallback = 'Something went wrong. Please try again.';
+      setError(fallback);
+      return { ok: false, data: null, error: fallback };
     } finally {
       setLoading(false);
     }

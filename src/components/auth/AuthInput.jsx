@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { BiHide, BiShow } from 'react-icons/bi';
+
 function AuthInput({
   label,
   icon: Icon,
@@ -20,7 +23,7 @@ function AuthInput({
           id={id}
           name={name}
           type={type}
-          className="form-control auth-input"
+          className="auth-input"
           placeholder={placeholder}
           value={value}
           onChange={onChange}
@@ -33,4 +36,24 @@ function AuthInput({
   );
 }
 
+function PasswordInput({ showToggle = true, ...props }) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <AuthInput {...props} type={visible ? 'text' : 'password'}>
+      {showToggle && (
+        <button
+          type="button"
+          className="auth-input-toggle"
+          onClick={() => setVisible((v) => !v)}
+          aria-label={visible ? 'Hide password' : 'Show password'}
+        >
+          {visible ? <BiHide /> : <BiShow />}
+        </button>
+      )}
+    </AuthInput>
+  );
+}
+
 export default AuthInput;
+export { PasswordInput };

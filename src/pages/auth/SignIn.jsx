@@ -1,19 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  BiArrowFromRight,
-  BiEnvelope,
-  BiHide,
-  BiLockAlt,
-  BiShow,
-} from 'react-icons/bi';
-import AuthInput from '../../components/auth/AuthInput.jsx';
-import AuthLayout from '../../components/auth/AuthLayout.jsx';
-import { useAuth } from '../../context/AuthContext.jsx';
-import { useAuthSubmit } from '../../hooks/useAuthSubmit.js';
+import { BiArrowFromRight, BiEnvelope, BiLockAlt } from 'react-icons/bi';
+import AuthInput, { PasswordInput } from '@/components/auth/AuthInput.jsx';
+import AuthLayout from '@/components/auth/AuthLayout.jsx';
+import { useAuth } from '@/context/AuthContext.jsx';
+import { useAuthSubmit } from '@/hooks/useAuthSubmit.js';
 
 function SignIn() {
-  const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
@@ -23,8 +16,8 @@ function SignIn() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const result = await run(() => signIn(email, password, rememberMe));
-    if (result !== null) navigate('/dashboard');
+    const { ok } = await run(() => signIn(email, password, rememberMe));
+    if (ok) navigate('/dashboard');
   };
 
   return (
@@ -47,26 +40,16 @@ function SignIn() {
           onChange={(e) => setEmail(e.target.value)}
         />
 
-        <AuthInput
+        <PasswordInput
           id="signInPassword"
           name="password"
           label="Password"
-          type={showPassword ? 'text' : 'password'}
           placeholder="Enter your password"
           autoComplete="current-password"
           icon={BiLockAlt}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-        >
-          <button
-            type="button"
-            className="auth-input-toggle"
-            onClick={() => setShowPassword((prev) => !prev)}
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
-          >
-            {showPassword ? <BiHide /> : <BiShow />}
-          </button>
-        </AuthInput>
+        />
 
         <div className="auth-options">
           <label className="auth-checkbox">
@@ -84,7 +67,7 @@ function SignIn() {
 
         {error && <div className="auth-error">{error}</div>}
 
-        <button type="submit" className="btn auth-submit" disabled={loading}>
+        <button type="submit" className="auth-submit" disabled={loading}>
           {loading ? 'Signing in...' : 'Sign In'} <BiArrowFromRight />
         </button>
       </form>

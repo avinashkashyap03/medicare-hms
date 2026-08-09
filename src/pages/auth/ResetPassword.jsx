@@ -1,33 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   BiArrowBack,
   BiArrowFromRight,
   BiCheckCircle,
-  BiHide,
   BiLockAlt,
-  BiShow,
 } from 'react-icons/bi';
-import AuthInput from '../../components/auth/AuthInput.jsx';
-import AuthLayout from '../../components/auth/AuthLayout.jsx';
-import { useAuth } from '../../context/AuthContext.jsx';
-import { useAuthSubmit } from '../../hooks/useAuthSubmit.js';
-import { validatePassword } from '../../utils/auth.js';
-import supabase from '../../services/supabase.js';
+import { PasswordInput } from '@/components/auth/AuthInput.jsx';
+import AuthLayout from '@/components/auth/AuthLayout.jsx';
+import Spinner from '@/components/ui/Spinner.jsx';
+import { useAuth } from '@/context/AuthContext.jsx';
+import { useAuthSubmit } from '@/hooks/useAuthSubmit.js';
+import { usePasswordForm } from '@/hooks/usePasswordForm.js';
+import supabase from '@/services/supabase.js';
 
 function ResetPassword() {
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const { password, setPassword, confirmPassword, setConfirmPassword, validate } =
+    usePasswordForm();
   const [checking, setChecking] = useState(true);
   const [invalid, setInvalid] = useState(false);
   const [done, setDone] = useState(false);
   const { exchangeRecoveryCode, updatePassword, signOut } = useAuth();
   const { error, loading, run, setError } = useAuthSubmit();
   const navigate = useNavigate();
+  const didInit = useRef(false);
 
   useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
+
     let cancelled = false;
 
     async function init() {
@@ -53,25 +54,19 @@ function ResetPassword() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [run, exchangeRecoveryCode]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    const passwordError = validatePassword(password);
+    const passwordError = validate();
     if (passwordError) {
       setError(passwordError);
       return;
     }
 
-    const result = await run(() => updatePassword(password));
-    if (result !== null) setDone(true);
+    const { ok } = await run(() => updatePassword(password));
+    if (ok) setDone(true);
   };
 
   const handleGoToSignIn = async () => {
@@ -86,20 +81,8 @@ function ResetPassword() {
   if (checking) {
     return (
       <AuthLayout>
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-          <span
-            className="spinner"
-            style={{
-              width: '32px',
-              height: '32px',
-              border: '3px solid rgba(0, 0, 0, 0.1)',
-              borderTopColor: '#2563eb',
-              borderRadius: '50%',
-              animation: 'spinner-rotate 0.8s linear infinite',
-            }}
-            aria-label="Loading"
-            role="status"
-          />
+        <div className="loader-center loader-center--padded">
+          <Spinner />
         </div>
       </AuthLayout>
     );
@@ -114,7 +97,7 @@ function ResetPassword() {
           </span>
           <h3>Password updated</h3>
           <p>Your password has been changed successfully. Sign in again with your new password.</p>
-          <button type="button" className="btn auth-submit" onClick={handleGoToSignIn}>
+          <button type="button" className="auth-submit" onClick={handleGoToSignIn}>
             Go to Sign In <BiArrowFromRight />
           </button>
         </div>
@@ -132,7 +115,7 @@ function ResetPassword() {
 
         {error && <div className="auth-error">{error}</div>}
 
-        <Link to="/forgot-password" className="btn auth-submit">
+        <Link to="/forgot-password" className="auth-submit">
           Request a new link <BiArrowFromRight />
         </Link>
 
@@ -157,51 +140,31 @@ function ResetPassword() {
       </div>
 
       <form className="auth-form-body" onSubmit={handleSubmit}>
-        <AuthInput
+        <PasswordInput
           id="resetPassword"
           name="password"
           label="New password"
-          type={showPassword ? 'text' : 'password'}
           placeholder="Create a password"
           autoComplete="new-password"
           icon={BiLockAlt}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-        >
-          <button
-            type="button"
-            className="auth-input-toggle"
-            onClick={() => setShowPassword((prev) => !prev)}
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
-          >
-            {showPassword ? <BiHide /> : <BiShow />}
-          </button>
-        </AuthInput>
+        />
 
-        <AuthInput
+        <PasswordInput
           id="resetConfirm"
           name="confirmPassword"
           label="Confirm new password"
-          type={showConfirm ? 'text' : 'password'}
           placeholder="Re-enter your password"
           autoComplete="new-password"
           icon={BiLockAlt}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-        >
-          <button
-            type="button"
-            className="auth-input-toggle"
-            onClick={() => setShowConfirm((prev) => !prev)}
-            aria-label={showConfirm ? 'Hide password' : 'Show password'}
-          >
-            {showConfirm ? <BiHide /> : <BiShow />}
-          </button>
-        </AuthInput>
+        />
 
         {error && <div className="auth-error">{error}</div>}
 
-        <button type="submit" className="btn auth-submit" disabled={loading}>
+        <button type="submit" className="auth-submit" disabled={loading}>
           {loading ? 'Updating...' : 'Update Password'} <BiArrowFromRight />
         </button>
       </form>

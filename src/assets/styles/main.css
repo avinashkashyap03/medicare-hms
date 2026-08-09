@@ -7,3 +7,23 @@ body {
     transform: rotate(360deg);
   }
 }
+
+.spinner {
+  display: inline-block;
+  border: 3px solid var(--db-border);
+  border-top-color: var(--db-primary);
+  border-radius: 50%;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+.loader-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.loader-center--padded {
+  min-height: 0;
+  padding: 40px 0;
+}

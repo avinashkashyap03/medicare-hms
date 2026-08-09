@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BiArrowBack, BiEnvelope, BiSend } from 'react-icons/bi';
-import AuthInput from '../../components/auth/AuthInput.jsx';
-import AuthLayout from '../../components/auth/AuthLayout.jsx';
-import { useAuth } from '../../context/AuthContext.jsx';
-import { useAuthSubmit } from '../../hooks/useAuthSubmit.js';
+import AuthInput from '@/components/auth/AuthInput.jsx';
+import AuthLayout from '@/components/auth/AuthLayout.jsx';
+import { useAuth } from '@/context/AuthContext.jsx';
+import { useAuthSubmit } from '@/hooks/useAuthSubmit.js';
 
 function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -14,10 +14,10 @@ function ForgotPassword() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const result = await run(() =>
+    const { ok } = await run(() =>
       resetPassword(email, `${window.location.origin}/reset-password`)
     );
-    if (result !== null) setSubmitted(true);
+    if (ok) setSubmitted(true);
   };
 
   return (
@@ -37,7 +37,7 @@ function ForgotPassword() {
             If an account exists for your email, a password reset link has been sent. Follow the
             instructions to regain access.
           </p>
-          <Link to="/login" className="btn auth-submit">
+          <Link to="/login" className="auth-submit">
             Back to Sign In
           </Link>
         </div>
@@ -57,7 +57,7 @@ function ForgotPassword() {
 
           {error && <div className="auth-error">{error}</div>}
 
-          <button type="submit" className="btn auth-submit" disabled={loading}>
+          <button type="submit" className="auth-submit" disabled={loading}>
             {loading ? 'Sending...' : 'Send Reset Link'} <BiSend />
           </button>
         </form>
