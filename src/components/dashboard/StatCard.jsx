@@ -1,7 +1,9 @@
+import { Link } from 'react-router-dom';
 import {
   BiDollar,
   BiCalendarCheck,
   BiFirstAid,
+  BiSolidCapsule,
   BiUserPlus,
 } from 'react-icons/bi';
 import { FiArrowUpRight, FiArrowDownRight } from 'react-icons/fi';
@@ -12,25 +14,36 @@ const iconMap = {
   doctors: BiFirstAid,
   appointments: BiCalendarCheck,
   revenue: BiDollar,
+  pharmacy: BiSolidCapsule,
 };
 
+// Theme-aware colors: reference the design tokens so they adapt in dark mode.
 const colorMap = {
-  blue: '#2563eb',
-  violet: '#8b5cf6',
-  info: '#0ea5e9',
-  success: '#10b981',
-  amber: '#f59e0b',
+  blue: 'var(--db-primary)',
+  violet: 'var(--db-violet)',
+  info: 'var(--db-info)',
+  success: 'var(--db-success)',
+  amber: 'var(--db-warning)',
+};
+
+const softMap = {
+  blue: 'var(--db-primary-soft)',
+  violet: 'var(--db-violet-soft)',
+  info: 'var(--db-info-soft)',
+  success: 'var(--db-success-soft)',
+  amber: 'var(--db-warning-soft)',
 };
 
 function StatCard({ stat }) {
   const Icon = iconMap[stat.id] || BiUserPlus;
-  const color = colorMap[stat.color] || '#2563eb';
+  const color = colorMap[stat.color] || 'var(--db-primary)';
+  const soft = softMap[stat.color] || 'var(--db-primary-soft)';
   const up = stat.delta >= 0;
 
-  return (
-    <article className="card stat-card" style={{ '--c': color }}>
+  const inner = (
+    <>
       <div className="stat-card-top">
-        <span className="stat-icon" style={{ color, background: `${color}1f` }}>
+        <span className="stat-icon" style={{ color, background: soft }}>
           <Icon />
         </span>
         <span className={`stat-trend ${up ? 'up' : 'down'}`}>
@@ -46,6 +59,20 @@ function StatCard({ stat }) {
         <Sparkline data={stat.spark} color={color} />
       </div>
       <span className="stat-hint">vs last month</span>
+    </>
+  );
+
+  if (stat.to) {
+    return (
+      <Link to={stat.to} className="card stat-card stat-link" style={{ '--c': color }}>
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <article className="card stat-card" style={{ '--c': color }}>
+      {inner}
     </article>
   );
 }

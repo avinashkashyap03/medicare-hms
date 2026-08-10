@@ -1,0 +1,70 @@
+/* ------------------------------------------------------------------
+   MediCare HMS — Inventory page
+   ------------------------------------------------------------------- */
+
+/* ---------- Stock level cell ---------- */
+.stock-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stock-qty {
+  font-weight: 700;
+  color: var(--db-heading);
+}
+
+.stock-qty--low {
+  color: var(--db-danger);
+}
+
+.stock-reorder {
+  font-size: 0.74rem;
+}
+
+/* ---------- Prices cell ---------- */
+.stock-prices {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+  color: var(--db-heading);
+}
+
+.stock-prices .muted {
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+/* ---------- Stock status badges ---------- */
+.stock-badge.in_stock {
+  color: var(--db-success);
+  background: var(--db-success-soft);
+}
+
+.stock-badge.low {
+  color: var(--db-warning);
+  background: var(--db-warning-soft);
+}
+
+.stock-badge.out_of_stock {
+  color: var(--db-danger);
+  background: var(--db-danger-soft);
+}
+
+.stock-badge.expired {
+  color: var(--db-violet);
+  background: var(--db-violet-soft);
+}
+
+/* Staff status badge (shares the .stock-badge base) */
+.stock-badge.on-leave {
+  color: var(--db-warning);
+  background: var(--db-warning-soft);
+}
+
+/* ---------- Modal note ---------- */
+.inventory-note {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+}

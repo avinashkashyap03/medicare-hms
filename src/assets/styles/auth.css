@@ -15,6 +15,16 @@
   --auth-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
+.theme-dark {
+  --auth-bg: #0f172a;
+  --auth-card: #111c33;
+  --auth-text: #e2e8f0;
+  --auth-border: #22304d;
+  --auth-muted: #94a3b8;
+  --auth-primary-soft: rgba(37, 99, 235, 0.22);
+  --auth-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
 /* ---------- Layout ---------- */
 .auth-split {
   display: flex;

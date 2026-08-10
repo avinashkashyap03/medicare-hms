@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BiArrowFromRight, BiEnvelope, BiLockAlt } from 'react-icons/bi';
 import AuthInput, { PasswordInput } from '@/components/auth/AuthInput.jsx';
@@ -10,14 +10,21 @@ function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
-  const { signIn } = useAuth();
+  const [signedIn, setSignedIn] = useState(false);
+  const { user, signIn } = useAuth();
   const { error, loading, run } = useAuthSubmit();
   const navigate = useNavigate();
+
+  // Navigate only once the session is reflected in context to avoid the race
+  // where ProtectedRoute still sees `user === null` right after signIn().
+  useEffect(() => {
+    if (signedIn && user) navigate('/dashboard', { replace: true });
+  }, [signedIn, user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const { ok } = await run(() => signIn(email, password, rememberMe));
-    if (ok) navigate('/dashboard');
+    if (ok) setSignedIn(true);
   };
 
   return (

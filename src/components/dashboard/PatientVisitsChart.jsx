@@ -54,7 +54,7 @@ function PatientVisitsChart() {
     .filter((_, j) => j % 2 === 0);
 
   return (
-    <section className="card widget chart-widget">
+    <section className="card widget">
       <WidgetHeader
         title="Patient Visits"
         subtitle={subtitles[range]}

@@ -8,15 +8,10 @@ function BedOccupancy() {
   const avg = Math.round(bedOccupancy.reduce((s, d) => s + d.used, 0) / bedOccupancy.reduce((s, d) => s + d.total, 0) * 100);
 
   return (
-    <section className="card widget bed-widget">
+    <section className="card widget">
       <WidgetHeader
         title="Bed Occupancy"
         subtitle="Live hospital bed usage"
-        action={
-          <button type="button" className="btn-ghost">
-            View all
-          </button>
-        }
       />
 
       <div className="bed-body">

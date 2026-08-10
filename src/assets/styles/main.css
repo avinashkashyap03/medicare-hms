@@ -1,5 +1,10 @@
 body {
   margin: 0;
+  font-family: var(--db-font);
+}
+
+.muted {
+  color: var(--db-muted);
 }
 
 @keyframes spinner-rotate {

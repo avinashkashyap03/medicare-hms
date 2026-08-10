@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import {
   BiBed,
   BiCalendarPlus,
@@ -18,22 +19,17 @@ const iconMap = {
 
 function RecentActivity() {
   return (
-    <section className="card widget activity-widget">
+    <section className="card widget">
       <WidgetHeader
         title="Recent Activity"
         subtitle="Latest actions across the system"
-        action={
-          <button type="button" className="btn-ghost">
-            View all
-          </button>
-        }
       />
 
       <ul className="activity-list">
         {recentActivity.map((a, i) => {
           const Icon = iconMap[a.icon] || BiUserPlus;
-          return (
-            <li key={i}>
+          const inner = (
+            <>
               <span className={`activity-icon ${a.color}`}>
                 <Icon />
               </span>
@@ -41,8 +37,9 @@ function RecentActivity() {
                 <p>{a.text}</p>
                 <span>{a.time}</span>
               </div>
-            </li>
+            </>
           );
+          return <li key={i}>{a.icon === 'invoice' ? <Link to="/billing" className="activity-link">{inner}</Link> : inner}</li>;
         })}
       </ul>
     </section>

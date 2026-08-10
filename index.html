@@ -4,7 +4,23 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>medicare-hms</title>
+    <title>MediCare HMS — Hospital Management System</title>
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem('medicare-theme');
+          var dark = theme === 'dark';
+          var root = document.documentElement;
+          if (dark) {
+            root.classList.add('theme-dark');
+            root.style.backgroundColor = '#0f172a';
+          } else {
+            root.style.backgroundColor = '#f8fafc';
+          }
+          root.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

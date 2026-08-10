@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { appointmentStatus } from '@/data/mockData.js';
 import WidgetHeader from './WidgetHeader.jsx';
 
@@ -15,14 +16,14 @@ function AppointmentDonut() {
   });
 
   return (
-    <section className="card widget donut-widget">
+    <section className="card widget">
       <WidgetHeader
         title="Appointment Status"
         subtitle="Distribution by current status"
         action={
-          <button type="button" className="btn-ghost">
+          <Link to="/appointments" className="btn-ghost">
             Details
-          </button>
+          </Link>
         }
       />
 
@@ -33,7 +34,7 @@ function AppointmentDonut() {
             className="donut-svg"
             role="img"
             aria-label={`Appointment status: ${appointmentStatus
-              .map((d) => `${d.label} ${d.value}%`)
+              .map((d) => `${d.label} ${d.value} of ${total}`)
               .join(', ')}`}
           >
             <circle cx="80" cy="80" r={R} fill="none" strokeWidth="16" className="donut-track" />
@@ -65,7 +66,7 @@ strokeDasharray={`${d.len} ${CIRC - d.len}`}
             <div key={d.label} className="donut-legend-item">
               <span className="legend-color" style={{ background: d.color }} />
               <span className="legend-label">{d.label}</span>
-              <span className="legend-value">{d.value}%</span>
+              <span className="legend-value">{d.value}</span>
             </div>
           ))}
         </div>

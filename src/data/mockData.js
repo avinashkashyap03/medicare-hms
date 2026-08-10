@@ -1,6 +1,17 @@
 /* ------------------------------------------------------------------
-   MediCare HMS — Dummy data for the dashboard
-------------------------------------------------------------------- */
+   MediCare HMS — TEMPORARY PLACEHOLDER DATA (Dummy)
+   ===========================================================
+   NOTE: This file contains hardcoded dummy values used only to give
+   the dashboard a realistic look during development.
+
+   It must be REPLACED with real data before going to production.
+   To wire real data:
+     1. Create the matching tables in Supabase
+        (see supabase.com dashboard > SQL Editor).
+     2. Swap these exports for queries via src/services/supabase.js
+        (e.g. from('patients').select('*')).
+   Until then, the numbers below are NOT real hospital data.
+   ------------------------------------------------------------------- */
 
 export const dashboardStats = [
   {
@@ -34,6 +45,14 @@ export const dashboardStats = [
     delta: -2.3,
     color: 'success',
     spark: [9, 8.4, 8.8, 8, 8.4, 7.6, 8.2, 7.8, 7.2, 7.6, 7, 6.8],
+  },
+  {
+    id: 'pharmacy',
+    label: 'Medicines',
+    value: '0',
+    delta: 0,
+    color: 'info',
+    spark: [2, 2.4, 2.2, 2.8, 3, 2.8, 3.4, 3.2, 3.8, 4, 4.2, 4.6],
   },
 ];
 

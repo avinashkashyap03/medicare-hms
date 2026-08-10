@@ -1,6 +1,6 @@
 import { useId } from 'react';
 
-function Sparkline({ data, color = '#2563eb', width = 96, height = 32, strokeWidth = 2 }) {
+function Sparkline({ data, color = 'var(--db-primary)', width = 96, height = 32, strokeWidth = 2 }) {
   const gradId = `spark-grad-${useId().replace(/:/g, '')}`;
 
   if (!data || data.length < 2) return null;
@@ -30,13 +30,25 @@ function Sparkline({ data, color = '#2563eb', width = 96, height = 32, strokeWid
     >
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
+          <stop offset="0%" style={{ stopColor: color, stopOpacity: 0.28 }} />
+          <stop offset="100%" style={{ stopColor: color, stopOpacity: 0 }} />
         </linearGradient>
       </defs>
       <path d={areaPath} fill={`url(#${gradId})`} />
-      <path d={linePath} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={points[points.length - 1][0]} cy={points[points.length - 1][1]} r="2.4" fill={color} />
+      <path
+        d={linePath}
+        fill="none"
+        style={{ stroke: color }}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle
+        cx={points[points.length - 1][0]}
+        cy={points[points.length - 1][1]}
+        r="2.4"
+        style={{ fill: color }}
+      />
     </svg>
   );
 }

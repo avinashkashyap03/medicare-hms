@@ -1,0 +1,427 @@
+/* ------------------------------------------------------------------
+   MediCare HMS — Patients page
+------------------------------------------------------------------- */
+
+.page-head .welcome-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-title-icon {
+  color: var(--db-primary);
+  font-size: 1.5rem;
+}
+
+.page-back {
+  margin-top: 18px;
+}
+
+.page-alert {
+  padding: 12px 16px;
+  border-radius: var(--db-radius-sm);
+  font-size: 0.88rem;
+  font-weight: 500;
+  margin-bottom: 16px;
+  animation: db-fade-up 0.25s ease both;
+}
+
+.page-alert--danger {
+  color: var(--db-danger);
+  background: var(--db-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--db-danger) 30%, transparent);
+}
+
+/* ---------- Toolbar ---------- */
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.toolbar-search {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 380px;
+}
+
+.toolbar-search svg {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--db-muted);
+  font-size: 1rem;
+}
+
+.toolbar-search input {
+  width: 100%;
+  height: 42px;
+  box-sizing: border-box;
+  padding: 0 14px 0 38px;
+  border-radius: var(--db-radius-sm);
+  border: 1px solid var(--db-border);
+  background: var(--db-bg);
+  color: var(--db-text);
+  font-size: 0.9rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.toolbar-search input::placeholder {
+  color: var(--db-muted);
+}
+
+.toolbar-search input:focus {
+  outline: none;
+  border-color: var(--db-primary);
+  box-shadow: 0 0 0 4px var(--db-primary-soft);
+  background: var(--db-card);
+}
+
+.toolbar-count {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--db-muted);
+  background: var(--db-bg);
+  border: 1px solid var(--db-border);
+  padding: 7px 14px;
+  border-radius: 999px;
+}
+
+/* ---------- Table cell helpers ---------- */
+.cell-patient {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cell-sub {
+  color: var(--db-muted);
+  font-size: 0.78rem;
+}
+
+.cell-link {
+  color: var(--db-primary);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.cell-link:hover {
+  color: var(--db-primary-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cell-patient .initials {
+  width: 36px;
+  height: 36px;
+  font-size: 0.8rem;
+  background: linear-gradient(135deg, var(--db-primary), var(--db-primary-dark));
+  color: #fff;
+}
+
+.empty-cell {
+  text-align: center;
+  padding: 40px 12px !important;
+  font-size: 0.9rem;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon-btn--sm-danger:hover {
+  color: var(--db-danger) !important;
+  background: var(--db-danger-soft) !important;
+}
+
+/* ---------- Blood chip ---------- */
+.blood-chip {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--db-info);
+  background: var(--db-info-soft);
+}
+
+.blood-a {
+  color: var(--db-danger);
+  background: var(--db-danger-soft);
+}
+
+.blood-b {
+  color: var(--db-warning);
+  background: var(--db-warning-soft);
+}
+
+.blood-ab {
+  color: var(--db-violet);
+  background: var(--db-violet-soft);
+}
+
+.blood-o {
+  color: var(--db-success);
+  background: var(--db-success-soft);
+}
+
+.blood-unknown {
+  color: var(--db-muted);
+  background: var(--db-bg);
+}
+
+.status-badge.active {
+  color: var(--db-success);
+  background: var(--db-success-soft);
+}
+
+.status-badge.inactive {
+  color: var(--db-muted);
+  background: var(--db-bg);
+}
+
+/* ---------- Pagination ---------- */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--db-divider);
+  flex-wrap: wrap;
+}
+
+.pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pagination-page {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--db-border);
+  background: var(--db-card);
+  color: var(--db-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.pagination-page:hover {
+  color: var(--db-primary);
+  border-color: var(--db-primary);
+}
+
+.pagination-page.active {
+  background: linear-gradient(135deg, var(--db-primary), var(--db-primary-dark));
+  color: #fff;
+  border-color: var(--db-primary);
+}
+
+.pagination .btn-ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- Modal ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: db-fade-up 0.2s ease both;
+}
+
+.modal {
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--db-card);
+  border: 1px solid var(--db-border);
+  border-radius: var(--db-radius);
+  box-shadow: var(--db-shadow-hover);
+  padding: 24px;
+}
+
+.modal--sm {
+  max-width: 420px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--db-heading);
+}
+
+.modal-head .icon-btn--sm {
+  font-size: 1.4rem;
+  background: var(--db-bg);
+  border-radius: 8px;
+}
+
+.modal-body-text {
+  color: var(--db-muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  margin: 0 0 8px;
+}
+
+.modal-body-text strong {
+  color: var(--db-heading);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.28);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+.btn-danger:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+}
+
+.btn-primary:disabled,
+.btn-danger:disabled,
+.btn-ghost:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ---------- Patient form ---------- */
+.patient-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.form-field > span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--db-muted);
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--db-radius-sm);
+  border: 1px solid var(--db-border);
+  background: var(--db-bg);
+  color: var(--db-text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  outline: none;
+  border-color: var(--db-primary);
+  box-shadow: 0 0 0 4px var(--db-primary-soft);
+  background: var(--db-card);
+}
+
+.form-field input::placeholder,
+.form-field textarea::placeholder {
+  color: var(--db-muted);
+}
+
+.form-field--full {
+  grid-column: 1 / -1;
+}
+
+.form-hint {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--db-muted);
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Dark mode refinements ---------- */
+.theme-dark .toolbar-search input,
+.theme-dark .form-field input,
+.theme-dark .form-field select,
+.theme-dark .form-field textarea {
+  background: var(--db-surface-alt, var(--db-card));
+}
+
+.theme-dark .blood-unknown,
+.theme-dark .status-badge.inactive {
+  background: var(--db-surface-alt, var(--db-bg));
+}

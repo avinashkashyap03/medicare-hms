@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   BiBarChart,
@@ -8,11 +9,13 @@ import {
   BiDollarCircle,
   BiFirstAid,
   BiLogOut,
+  BiSolidCapsule,
   BiSolidClinic,
   BiUser,
   BiUserCircle,
 } from 'react-icons/bi';
 import { useAuth } from '@/context/AuthContext.jsx';
+import { getPendingInvoiceCount, subscribePendingCount } from '@/services/billing.js';
 
 const navGroups = [
   {
@@ -28,8 +31,9 @@ const navGroups = [
   {
     label: 'Management',
     items: [
-      { to: '/billing', label: 'Billing & Invoice', icon: BiDollarCircle, badge: 4 },
+      { to: '/billing', label: 'Billing & Invoice', icon: BiDollarCircle },
       { to: '/inventory', label: 'Inventory', icon: BiBox },
+      { to: '/pharmacy', label: 'Pharmacy', icon: BiSolidCapsule },
       { to: '/staff', label: 'Staff', icon: BiUserCircle },
       { to: '/reports', label: 'Reports', icon: BiBarChart },
     ],
@@ -39,6 +43,36 @@ const navGroups = [
 function Sidebar({ open, onClose }) {
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      getPendingInvoiceCount()
+        .then((count) => {
+          if (!cancelled) setPendingCount(count);
+        })
+        .catch((err) => {
+          console.error('Failed to load pending invoice count:', err);
+          if (!cancelled) setPendingCount(0);
+        });
+    };
+    refresh();
+    const unsubscribe = subscribePendingCount(refresh);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -62,6 +96,7 @@ function Sidebar({ open, onClose }) {
             <p className="sidebar-label">{group.label}</p>
             {group.items.map((item) => {
               const Icon = item.icon;
+              const badge = item.to === '/billing' ? pendingCount : item.badge;
               return (
                 <NavLink
                   key={item.to}
@@ -72,7 +107,7 @@ function Sidebar({ open, onClose }) {
                 >
                   <Icon />
                   <span>{item.label}</span>
-                  {item.badge && <span className="badge-dot">{item.badge}</span>}
+                  {badge > 0 && <span className="badge-dot">{badge}</span>}
                 </NavLink>
               );
             })}
