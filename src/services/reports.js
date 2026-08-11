@@ -1,6 +1,8 @@
 /* ------------------------------------------------------------------
    MediCare HMS — Reports service
-   Aggregated, real data pulled from existing tables for the Reports page.
+   Aggregations are computed inside PostgreSQL via RPC functions
+   (see supabase/migrations/008_aggregate_functions.sql) so the
+   browser never receives whole tables just to count/sum them.
    ------------------------------------------------------------------- */
 
 import supabase from '@/services/supabase.js';
@@ -19,176 +21,85 @@ const INVOICE_STATUS_COLORS = {
   cancelled: '#94a3b8',
 };
 
-export function appointmentStatusColor(status) {
-  return STATUS_COLORS[status] || '#94a3b8';
+const INVENTORY_STATUS_COLORS = {
+  in_stock: '#10b981',
+  low: '#f59e0b',
+  out_of_stock: '#ef4444',
+  expired: '#8b5cf6',
+};
+
+function toTitle(value) {
+  return String(value || '')
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
-export function invoiceStatusColor(status) {
-  return INVOICE_STATUS_COLORS[status] || '#94a3b8';
+function toNumber(value) {
+  return Number(value || 0);
 }
 
-// Count of appointments grouped by status.
-export async function getAppointmentsByStatus() {
-  const { data, error } = await supabase.from('appointments').select('status');
+// Everything the Reports page needs in ONE PostgreSQL RPC call.
+// The RPC returns a single jsonb payload which we shape here into
+// the exact objects the page components already expect.
+export async function fetchReportSummary() {
+  const { data, error } = await supabase.rpc('get_report_summary');
   if (error) throw error;
 
-  const tally = { scheduled: 0, in_progress: 0, completed: 0, cancelled: 0 };
-  (data ?? []).forEach((a) => {
-    const status = String(a.status || 'scheduled');
-    if (status in tally) tally[status] += 1;
-  });
+  const appointmentsByStatus = (data?.appointmentsByStatus ?? []).map((r) => ({
+    status: r.status,
+    label: toTitle(r.status),
+    value: toNumber(r.count),
+    color: STATUS_COLORS[r.status],
+  }));
 
-  return Object.entries(tally)
-    .map(([status, value]) => ({
-      status,
-      label: status
-        .split('_')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' '),
-      value,
-      color: STATUS_COLORS[status],
-    }))
-    .filter((d) => d.value > 0);
-}
+  const appointmentsByDepartment = (data?.appointmentsByDepartment ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    color: r.color || '#2563eb',
+    count: toNumber(r.count),
+  }));
 
-// Appointment counts per department, joined with department name + color.
-export async function getAppointmentsByDepartment() {
-  const { data, error } = await supabase.from('appointments').select('department_id');
-  if (error) throw error;
+  const revenue = (data?.revenueByStatus ?? []).map((r) => ({
+    status: r.status,
+    label: String(r.status || '').charAt(0).toUpperCase() + String(r.status || '').slice(1),
+    amount: toNumber(r.amount),
+    count: toNumber(r.count),
+    color: INVOICE_STATUS_COLORS[r.status],
+  }));
 
-  const counts = {};
-  (data ?? []).forEach((a) => {
-    if (a.department_id) counts[a.department_id] = (counts[a.department_id] || 0) + 1;
-  });
+  const topDoctors = (data?.topDoctors ?? []).map((r) => ({
+    id: r.id,
+    name: r.name || 'Unknown doctor',
+    specialization: r.specialization || '',
+    count: toNumber(r.count),
+  }));
 
-  const { data: depts, error: deptError } = await supabase
-    .from('departments')
-    .select('id, name, color');
-  if (deptError) throw deptError;
+  const inventoryStatus = (data?.inventoryStatus ?? []).map((r) => ({
+    status: r.status,
+    label: toTitle(r.status),
+    value: toNumber(r.count),
+    color: INVENTORY_STATUS_COLORS[r.status],
+  }));
 
-  return (depts ?? [])
-    .map((d) => ({
-      id: d.id,
-      name: d.name,
-      color: d.color || '#2563eb',
-      count: counts[d.id] || 0,
-    }))
-    .filter((d) => d.count > 0)
-    .sort((a, b) => b.count - a.count);
-}
-
-// Revenue broken down by invoice status.
-export async function getRevenueByStatus() {
-  const { data, error } = await supabase
-    .from('invoices')
-    .select('total, paid_amount, status');
-  if (error) throw error;
-
-  const tally = { pending: 0, paid: 0, overdue: 0, cancelled: 0 };
-  const counts = { pending: 0, paid: 0, overdue: 0, cancelled: 0 };
-  (data ?? []).forEach((inv) => {
-    const status = String(inv.status || 'pending');
-    if (status in tally) {
-      tally[status] += Number(inv.total || 0);
-      counts[status] += 1;
-    }
-  });
-
-  return Object.entries(tally)
-    .map(([status, amount]) => ({
-      status,
-      label: status.charAt(0).toUpperCase() + status.slice(1),
-      amount,
-      count: counts[status],
-      color: INVOICE_STATUS_COLORS[status],
-    }))
-    .filter((d) => d.count > 0);
-}
-
-// Top doctors by number of appointments.
-export async function getTopDoctors(limit = 5) {
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('doctor_id, doctors(name, specialization)');
-  if (error) throw error;
-
-  const counts = {};
-  const info = {};
-  (data ?? []).forEach((a) => {
-    if (!a.doctor_id) return;
-    counts[a.doctor_id] = (counts[a.doctor_id] || 0) + 1;
-    info[a.doctor_id] = a.doctors || null;
-  });
-
-  return Object.entries(counts)
-    .map(([id, count]) => ({
-      id,
-      name: info[id]?.name || 'Unknown doctor',
-      specialization: info[id]?.specialization || '',
-      count,
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit);
-}
-
-// Inventory counts by stock status.
-export async function getInventoryStatus() {
-  const { data, error } = await supabase.from('inventory').select('status');
-  if (error) throw error;
-
-  const tally = { in_stock: 0, low: 0, out_of_stock: 0, expired: 0 };
-  (data ?? []).forEach((i) => {
-    const status = String(i.status || 'in_stock');
-    if (status in tally) tally[status] += 1;
-  });
-
-  const colorMap = { in_stock: '#10b981', low: '#f59e0b', out_of_stock: '#ef4444', expired: '#8b5cf6' };
-  return Object.entries(tally)
-    .map(([status, value]) => ({
-      status,
-      label: status
-        .split('_')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' '),
-      value,
-      color: colorMap[status],
-    }))
-    .filter((d) => d.value > 0);
-}
-
-// Recent invoices for the "Latest invoices" table.
-export async function getRecentInvoices(limit = 6) {
-  const { data, error } = await supabase
-    .from('invoices')
-    .select('id, invoice_no, total, paid_amount, status, created_at, patients(name)')
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-  return data ?? [];
-}
-
-// Everything the Reports page needs in one shot.
-export async function fetchReportData() {
-  const [patientsRes, doctorsRes, apptRes, inventoryRes, staffRes, bedsRes] = await Promise.all([
-    supabase.from('patients').select('id', { count: 'exact', head: true }),
-    supabase.from('doctors').select('id', { count: 'exact', head: true }),
-    supabase.from('appointments').select('id', { count: 'exact', head: true }),
-    supabase.from('inventory').select('id', { count: 'exact', head: true }),
-    supabase.from('staff').select('id', { count: 'exact', head: true }),
-    supabase.from('beds').select('id', { count: 'exact', head: true }),
-  ]);
-
-  for (const res of [patientsRes, doctorsRes, apptRes, inventoryRes, staffRes, bedsRes]) {
-    if (res.error) throw res.error;
-  }
+  const recentInvoices = (data?.recentInvoices ?? []).map((r) => ({
+    id: r.id,
+    invoice_no: r.invoice_no,
+    total: r.total,
+    paid_amount: r.paid_amount,
+    status: r.status,
+    created_at: r.created_at,
+    patients: r.patient_name ? { name: r.patient_name } : null,
+  }));
 
   return {
-    patients: patientsRes.count ?? 0,
-    doctors: doctorsRes.count ?? 0,
-    appointments: apptRes.count ?? 0,
-    inventory: inventoryRes.count ?? 0,
-    staff: staffRes.count ?? 0,
-    beds: bedsRes.count ?? 0,
+    totals: data?.totals ?? { patients: 0, doctors: 0, appointments: 0, inventory: 0, staff: 0, beds: 0 },
+    billing: data?.billing ?? { collected: 0, outstanding: 0, overdue: 0, pendingCount: 0, pendingAmount: 0, total: 0 },
+    appointmentsByStatus,
+    appointmentsByDepartment,
+    revenue,
+    topDoctors,
+    inventoryStatus,
+    recentInvoices,
   };
 }

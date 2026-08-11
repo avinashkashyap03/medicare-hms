@@ -7,7 +7,7 @@ import supabase from '@/services/supabase.js';
 import { ensureProfile } from '@/services/patients.js';
 
 const APPOINTMENT_SELECT =
-  'id, patient_id, doctor_id, department_id, date, time, type, reason, status, notes, created_by, created_at, patients(name, mrn), doctors(name, department_id), departments(name)';
+  'id, patient_id, doctor_id, department_id, date, time, type, reason, status, notes, created_by, created_at, patients(name, mrn), doctors(name, department_id, specialization), departments(name)';
 
 // Local calendar date (YYYY-MM-DD). `toISOString()` is UTC and can shift a
 // day for users east of UTC, so never use it for "today".
@@ -143,6 +143,26 @@ export async function addAppointment(payload, user) {
 
   if (error) throw toFriendlyAppointmentError(error);
   return data;
+}
+
+// Lightweight appointment lookup for the Billing "link appointment"
+// dropdown — max `limit` rows, optionally scoped to one patient.
+export async function searchAppointmentOptions(search = '', patientId = '', limit = 20) {
+  let query = supabase
+    .from('appointments')
+    .select('id, patient_id, date, time, type, patients(name)');
+
+  if (patientId) query = query.eq('patient_id', patientId);
+
+  if (search.trim()) {
+    const term = `%${search.trim()}%`;
+    query = query.or(`type.ilike.${term},reason.ilike.${term}`);
+  }
+
+  const { data, error } = await query.order('date', { ascending: false }).limit(limit);
+
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function updateAppointment(id, payload) {

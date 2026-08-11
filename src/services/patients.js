@@ -118,18 +118,30 @@ export async function fetchRecentPatients(limit = 5) {
   return data ?? [];
 }
 
-// Next unique MRN (e.g. "P-9085") — numeric max across all rows.
-// NOTE: ordering by the text column is lexicographic (P-9999 > P-10000), so we
-// pull every value and reduce numerically to guarantee a fresh number.
+// Next unique MRN (e.g. "P-9085") — pulled from the PostgreSQL
+// `mrn_seq` sequence via RPC so concurrent creates never collide.
 export async function getNextMrn() {
-  const { data, error } = await supabase.from('patients').select('mrn');
+  const { data, error } = await supabase.rpc('next_mrn');
 
   if (error) throw error;
+  return data;
+}
 
-  const max = (data ?? []).reduce((m, p) => {
-    const n = parseInt(String(p.mrn || '').replace(/\D/g, ''), 10);
-    return Number.isNaN(n) ? m : Math.max(m, n);
-  }, 9000);
+// Lightweight patient lookup for search-as-you-type dropdowns
+// (max `limit` rows; substring ILIKE is backed by pg_trgm indexes).
+export async function searchPatientOptions(search = '', limit = 20) {
+  let query = supabase
+    .from('patients')
+    .select('id, name, mrn')
+    .order('name', { ascending: true });
 
-  return `P-${max + 1}`;
+  if (search.trim()) {
+    const term = `%${search.trim()}%`;
+    query = query.or(`name.ilike.${term},mrn.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
+  }
+
+  const { data, error } = await query.limit(limit);
+
+  if (error) throw error;
+  return data ?? [];
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BiEdit, BiPlus, BiSearch, BiTrash, BiUser } from 'react-icons/bi';
 import Modal from '@/components/common/Modal.jsx';
 import Spinner from '@/components/ui/Spinner.jsx';
@@ -58,6 +58,16 @@ function Patients() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const aliveRef = useRef(true);
+  const seqRef = useRef(0);
+
+  // Unmount safety: prevents state updates after the page unmounts.
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -70,28 +80,11 @@ function Patients() {
     return () => clearTimeout(t);
   }, [search, debouncedSearch]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchPatients({ search: debouncedSearch, page, pageSize: PAGE_SIZE })
-      .then(({ data, count: total }) => {
-        if (cancelled) return;
-        setPatients(data);
-        setCount(total);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error('Failed to load patients:', err);
-        setError(err?.message || 'Failed to load patients.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedSearch, page]);
-
+  // Single source of truth for fetching — used on mount (via the effect
+  // below) and after every mutation. `seqRef` guards against stale
+  // responses racing ahead of newer requests.
   const load = useCallback(async () => {
+    const seq = ++seqRef.current;
     setLoading(true);
     setError('');
     try {
@@ -100,15 +93,24 @@ function Patients() {
         page,
         pageSize: PAGE_SIZE,
       });
+      if (seq !== seqRef.current || !aliveRef.current) return;
       setPatients(data);
       setCount(total);
     } catch (err) {
+      if (seq !== seqRef.current || !aliveRef.current) return;
       console.error('Failed to load patients:', err);
       setError(err?.message || 'Failed to load patients.');
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current && aliveRef.current) setLoading(false);
     }
   }, [debouncedSearch, page]);
+
+  useEffect(() => {
+    // Deferred so the initial fetch doesn't call setState synchronously
+    // inside the effect body (react-hooks/set-state-in-effect).
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
@@ -258,7 +260,7 @@ function Patients() {
                           <span className="initials">{firstName(p).charAt(0) || '?'}</span>
                           <div className="patient-info">
                             <strong>{p.name}</strong>
-                            <span>{p.id.slice(0, 8)}</span>
+                            <span>{p.mrn}</span>
                           </div>
                         </div>
                       </td>

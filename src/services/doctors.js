@@ -88,3 +88,22 @@ export async function fetchRecentDoctors(limit = 5) {
   if (error) throw error;
   return data ?? [];
 }
+
+// Lightweight doctor lookup for search-as-you-type dropdowns
+// (max `limit` rows; substring ILIKE is backed by pg_trgm indexes).
+export async function searchDoctorOptions(search = '', limit = 20) {
+  let query = supabase
+    .from('doctors')
+    .select('id, name, specialization, department_id')
+    .order('name', { ascending: true });
+
+  if (search.trim()) {
+    const term = `%${search.trim()}%`;
+    query = query.or(`name.ilike.${term},specialization.ilike.${term},license_no.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
+  }
+
+  const { data, error } = await query.limit(limit);
+
+  if (error) throw error;
+  return data ?? [];
+}

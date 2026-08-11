@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BiBox,
   BiDollarCircle,
@@ -85,16 +85,14 @@ function Inventory() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const aliveRef = useRef(true);
+  const seqRef = useRef(0);
 
+  // Unmount safety: prevents state updates after the page unmounts.
   useEffect(() => {
-    let cancelled = false;
-    getInventoryStats()
-      .then((s) => {
-        if (!cancelled) setStats(s);
-      })
-      .catch((err) => console.error('Failed to load inventory stats:', err));
+    aliveRef.current = true;
     return () => {
-      cancelled = true;
+      aliveRef.current = false;
     };
   }, []);
 
@@ -109,47 +107,40 @@ function Inventory() {
     return () => clearTimeout(t);
   }, [search, debouncedSearch]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchInventoryPage({ search: debouncedSearch, page, pageSize: PAGE_SIZE, status: filterStatus })
-      .then(({ data, count: total }) => {
-        if (cancelled) return;
-        setItems(data);
-        setCount(total);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error('Failed to load inventory:', err);
-        setError(err?.message || 'Failed to load inventory.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedSearch, page, filterStatus]);
-
+  // Single source of truth for fetching — used on mount (via the effect
+  // below) and after every mutation. `seqRef` guards against stale
+  // responses racing ahead of newer requests. Stats always refresh so
+  // the summary cards stay in sync even while filters are active.
   const load = useCallback(async () => {
+    const seq = ++seqRef.current;
     setLoading(true);
     setError('');
-    try {
-      const { data, count: total } = await fetchInventoryPage({
-        search: debouncedSearch,
-        page,
-        pageSize: PAGE_SIZE,
-        status: filterStatus,
-      });
-      setItems(data);
-      setCount(total);
-      if (!debouncedSearch && !filterStatus) setStats(await getInventoryStats());
-    } catch (err) {
-      console.error('Failed to load inventory:', err);
-      setError(err?.message || 'Failed to load inventory.');
-    } finally {
-      setLoading(false);
+    const [pageRes, statsRes] = await Promise.allSettled([
+      fetchInventoryPage({ search: debouncedSearch, page, pageSize: PAGE_SIZE, status: filterStatus }),
+      getInventoryStats(),
+    ]);
+    if (seq !== seqRef.current || !aliveRef.current) return;
+    if (pageRes.status === 'fulfilled') {
+      setItems(pageRes.value.data);
+      setCount(pageRes.value.count);
+    } else {
+      console.error('Failed to load inventory:', pageRes.reason);
+      setError(pageRes.reason?.message || 'Failed to load inventory.');
     }
+    if (statsRes.status === 'fulfilled') {
+      setStats(statsRes.value);
+    } else {
+      console.error('Failed to load inventory stats:', statsRes.reason);
+    }
+    setLoading(false);
   }, [debouncedSearch, page, filterStatus]);
+
+  useEffect(() => {
+    // Deferred so the initial fetch doesn't call setState synchronously
+    // inside the effect body (react-hooks/set-state-in-effect).
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
 

@@ -90,28 +90,11 @@ export async function deleteStaff(id) {
   if (error) throw error;
 }
 
-// Staff summary — totals and counts by status.
+// Staff summary — totals and counts by status + designations map.
+// Aggregated inside PostgreSQL (get_staff_stats RPC) instead of
+// transferring every row into JavaScript.
 export async function getStaffStats() {
-  const { data, error } = await supabase.from('staff').select('status, designation');
+  const { data, error } = await supabase.rpc('get_staff_stats');
   if (error) throw error;
-
-  const list = data ?? [];
-  const countByStatus = { active: 0, on_leave: 0, inactive: 0 };
-  list.forEach((s) => {
-    const status = String(s.status || 'active');
-    if (status in countByStatus) countByStatus[status] += 1;
-  });
-
-  const departments = list.reduce((acc, s) => {
-    if (s.designation) acc[s.designation] = (acc[s.designation] || 0) + 1;
-    return acc;
-  }, {});
-
-  return {
-    total: list.length,
-    active: countByStatus.active,
-    onLeave: countByStatus.on_leave,
-    inactive: countByStatus.inactive,
-    designations: departments,
-  };
+  return data;
 }

@@ -104,35 +104,10 @@ export function deriveStockStatus(quantity, reorderLevel, expiryDate) {
 }
 
 // Inventory summary — totals, counts by status and estimated stock value.
+// Aggregated inside PostgreSQL (get_inventory_stats RPC) instead of
+// transferring every row into JavaScript.
 export async function getInventoryStats() {
-  const { data, error } = await supabase
-    .from('inventory')
-    .select('quantity, reorder_level, purchase_price, selling_price, status, expiry_date');
-
+  const { data, error } = await supabase.rpc('get_inventory_stats');
   if (error) throw error;
-
-  const list = data ?? [];
-  const countByStatus = { in_stock: 0, low: 0, out_of_stock: 0, expired: 0 };
-  list.forEach((i) => {
-    const status = String(i.status || 'in_stock');
-    if (status in countByStatus) countByStatus[status] += 1;
-  });
-
-  const stockValue = list.reduce(
-    (s, i) => s + Number(i.quantity || 0) * Number(i.purchase_price || 0),
-    0
-  );
-  const retailValue = list.reduce(
-    (s, i) => s + Number(i.quantity || 0) * Number(i.selling_price || 0),
-    0
-  );
-
-  return {
-    total: list.length,
-    stockValue,
-    retailValue,
-    lowCount: countByStatus.low,
-    outOfStockCount: countByStatus.out_of_stock,
-    expiredCount: countByStatus.expired,
-  };
+  return data;
 }

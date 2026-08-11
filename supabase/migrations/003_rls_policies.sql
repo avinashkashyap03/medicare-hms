@@ -22,6 +22,16 @@ create policy "select_own_profile" on profiles
 create policy "update_own_profile" on profiles
   for update using (auth.uid() = id);
 
+-- ------------------------------------------------------------
+-- NOTE (intentional design — NOT an accidental security hole):
+-- The current system uses a SHARED hospital access model. Every
+-- authenticated user can read/write all business tables. This is
+-- deliberate for this phase of the application.
+-- Role-based restrictions (admin/doctor/receptionist/nurse/...)
+-- are planned for a future phase; those policies should replace
+-- the ones below when that work lands. Do not treat these as a
+-- bug to be "fixed" in isolation.
+-- ------------------------------------------------------------
 -- Business tables: SHARED (koi bhi logged-in user)
 create policy "all_users_read_departments"  on departments  for select using (auth.uid() is not null);
 create policy "all_users_insert_departments" on departments  for insert with check (auth.uid() is not null);

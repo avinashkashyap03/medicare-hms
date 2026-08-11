@@ -9,17 +9,8 @@ import {
 } from 'react-icons/bi';
 import Spinner from '@/components/ui/Spinner.jsx';
 import WidgetHeader from '@/components/dashboard/WidgetHeader.jsx';
-import { getBillingStats } from '@/services/billing.js';
 import { titleCase } from '@/utils/status.js';
-import {
-  fetchReportData,
-  getAppointmentsByDepartment,
-  getAppointmentsByStatus,
-  getInventoryStatus,
-  getRecentInvoices,
-  getRevenueByStatus,
-  getTopDoctors,
-} from '@/services/reports.js';
+import { fetchReportSummary } from '@/services/reports.js';
 
 const R = 62;
 const CIRC = 2 * Math.PI * R;
@@ -101,26 +92,17 @@ function Reports() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      fetchReportData(),
-      getBillingStats(),
-      getAppointmentsByStatus(),
-      getAppointmentsByDepartment(),
-      getRevenueByStatus(),
-      getTopDoctors(5),
-      getInventoryStatus(),
-      getRecentInvoices(6),
-    ])
-      .then(([t, b, aS, aD, rev, docs, inv, invs]) => {
+    fetchReportSummary()
+      .then((s) => {
         if (cancelled) return;
-        setTotals(t);
-        setBilling(b);
-        setApptStatus(aS);
-        setDeptAppts(aD);
-        setRevenue(rev);
-        setTopDoctors(docs);
-        setInventoryStatus(inv);
-        setRecentInvoices(invs);
+        setTotals(s.totals);
+        setBilling(s.billing);
+        setApptStatus(s.appointmentsByStatus);
+        setDeptAppts(s.appointmentsByDepartment);
+        setRevenue(s.revenue);
+        setTopDoctors(s.topDoctors);
+        setInventoryStatus(s.inventoryStatus);
+        setRecentInvoices(s.recentInvoices);
       })
       .catch((err) => {
         if (cancelled) return;

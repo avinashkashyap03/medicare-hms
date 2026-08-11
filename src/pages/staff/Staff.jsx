@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BiEdit,
   BiGroup,
@@ -80,16 +80,25 @@ function Staff() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const aliveRef = useRef(true);
+  const seqRef = useRef(0);
 
+  // Unmount safety: prevents state updates after the page unmounts.
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
+  // Small option list for the filter/form — fetched once.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchDepartments(), getStaffStats()])
-      .then(([depts, staffStats]) => {
-        if (cancelled) return;
-        setDepartments(depts);
-        setStats(staffStats);
+    fetchDepartments()
+      .then((data) => {
+        if (!cancelled) setDepartments(data);
       })
-      .catch((err) => console.error('Failed to load staff options:', err));
+      .catch((err) => console.error('Failed to load departments:', err));
     return () => {
       cancelled = true;
     };
@@ -106,47 +115,40 @@ function Staff() {
     return () => clearTimeout(t);
   }, [search, debouncedSearch]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchStaffPage({ search: debouncedSearch, page, pageSize: PAGE_SIZE, department: filterDept })
-      .then(({ data, count: total }) => {
-        if (cancelled) return;
-        setStaffList(data);
-        setCount(total);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error('Failed to load staff:', err);
-        setError(err?.message || 'Failed to load staff.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedSearch, page, filterDept]);
-
+  // Single source of truth for fetching — used on mount (via the effect
+  // below) and after every mutation. `seqRef` guards against stale
+  // responses racing ahead of newer requests. Stats always refresh so
+  // the summary cards stay in sync even while filters are active.
   const load = useCallback(async () => {
+    const seq = ++seqRef.current;
     setLoading(true);
     setError('');
-    try {
-      const { data, count: total } = await fetchStaffPage({
-        search: debouncedSearch,
-        page,
-        pageSize: PAGE_SIZE,
-        department: filterDept,
-      });
-      setStaffList(data);
-      setCount(total);
-      if (!debouncedSearch && !filterDept) setStats(await getStaffStats());
-    } catch (err) {
-      console.error('Failed to load staff:', err);
-      setError(err?.message || 'Failed to load staff.');
-    } finally {
-      setLoading(false);
+    const [pageRes, statsRes] = await Promise.allSettled([
+      fetchStaffPage({ search: debouncedSearch, page, pageSize: PAGE_SIZE, department: filterDept }),
+      getStaffStats(),
+    ]);
+    if (seq !== seqRef.current || !aliveRef.current) return;
+    if (pageRes.status === 'fulfilled') {
+      setStaffList(pageRes.value.data);
+      setCount(pageRes.value.count);
+    } else {
+      console.error('Failed to load staff:', pageRes.reason);
+      setError(pageRes.reason?.message || 'Failed to load staff.');
     }
+    if (statsRes.status === 'fulfilled') {
+      setStats(statsRes.value);
+    } else {
+      console.error('Failed to load staff stats:', statsRes.reason);
+    }
+    setLoading(false);
   }, [debouncedSearch, page, filterDept]);
+
+  useEffect(() => {
+    // Deferred so the initial fetch doesn't call setState synchronously
+    // inside the effect body (react-hooks/set-state-in-effect).
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
 

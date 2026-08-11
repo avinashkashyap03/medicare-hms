@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BiDollar,
@@ -15,8 +15,9 @@ import Spinner from '@/components/ui/Spinner.jsx';
 import { useAuth } from '@/context/AuthContext.jsx';
 import { useModal } from '@/hooks/useModal.js';
 import Modal from '@/components/common/Modal.jsx';
-import { fetchPatients } from '@/services/patients.js';
-import { fetchAppointments } from '@/services/appointments.js';
+import AsyncSelect from '@/components/common/AsyncSelect.jsx';
+import { searchPatientOptions } from '@/services/patients.js';
+import { searchAppointmentOptions } from '@/services/appointments.js';
 import { titleCase } from '@/utils/status.js';
 import {
   INVOICE_STATUS_OPTIONS,
@@ -86,8 +87,6 @@ function lineSubtotal(item) {
 function Billing() {
   const { user } = useAuth();
   const [invoices, setInvoices] = useState([]);
-  const [patients, setPatients] = useState([]);
-  const [appointments, setAppointments] = useState([]);
   const [stats, setStats] = useState({ collected: 0, outstanding: 0, overdue: 0, pendingCount: 0, pendingAmount: 0, total: 0 });
   const [count, setCount] = useState(0);
   const [search, setSearch] = useState('');
@@ -105,6 +104,18 @@ function Billing() {
   const [paymentForm, setPaymentForm] = useState({ amount: '', method: 'cash', transaction_id: '' });
   const [viewTarget, setViewTarget] = useState(null);
   const [viewPayments, setViewPayments] = useState([]);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const aliveRef = useRef(true);
+  const seqRef = useRef(0);
+
+  // Unmount safety: prevents state updates after the page unmounts.
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
 
   const loadStats = useCallback(async () => {
     try {
@@ -112,25 +123,6 @@ function Billing() {
     } catch (err) {
       console.error('Failed to load billing stats:', err);
     }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetchPatients({ pageSize: 2000 }),
-      fetchAppointments({ pageSize: 2000 }),
-      getBillingStats(),
-    ])
-      .then(([p, a, s]) => {
-        if (cancelled) return;
-        setPatients(p.data ?? []);
-        setAppointments(a.data ?? []);
-        setStats(s);
-      })
-      .catch((err) => console.error('Failed to load billing options:', err));
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   useEffect(() => {
@@ -144,28 +136,11 @@ function Billing() {
     return () => clearTimeout(t);
   }, [search, debouncedSearch]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchInvoices({ search: debouncedSearch, page, pageSize: PAGE_SIZE, status: filterStatus })
-      .then(({ data, count: total }) => {
-        if (cancelled) return;
-        setInvoices(data);
-        setCount(total);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error('Failed to load invoices:', err);
-        setError(err?.message || 'Failed to load invoices.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedSearch, page, filterStatus]);
-
+  // Single source of truth for fetching — used on mount (via the effect
+  // below) and after every mutation. `seqRef` guards against stale
+  // responses racing ahead of newer requests.
   const load = useCallback(async () => {
+    const seq = ++seqRef.current;
     setLoading(true);
     setError('');
     try {
@@ -175,16 +150,25 @@ function Billing() {
         pageSize: PAGE_SIZE,
         status: filterStatus,
       });
+      if (seq !== seqRef.current || !aliveRef.current) return;
       setInvoices(data);
       setCount(total);
       await loadStats();
     } catch (err) {
+      if (seq !== seqRef.current || !aliveRef.current) return;
       console.error('Failed to load invoices:', err);
       setError(err?.message || 'Failed to load invoices.');
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current && aliveRef.current) setLoading(false);
     }
   }, [debouncedSearch, page, filterStatus, loadStats]);
+
+  useEffect(() => {
+    // Deferred so the initial fetch doesn't call setState synchronously
+    // inside the effect body (react-hooks/set-state-in-effect).
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
@@ -204,6 +188,8 @@ function Billing() {
 
   const openAdd = async () => {
     setEditing(null);
+    setSelectedPatient(null);
+    setSelectedAppointment(null);
     let invoiceNo = '';
     try {
       invoiceNo = await getNextInvoiceNo();
@@ -225,6 +211,20 @@ function Billing() {
     if (items.length === 0) items.push(newLineItem());
     const subtotal = items.reduce((s, i) => s + lineSubtotal(i), 0);
     const taxRate = subtotal > 0 ? (Number(inv.tax || 0) / subtotal) * 100 : 0;
+    setSelectedPatient(
+      inv.patients ? { id: inv.patient_id, name: inv.patients.name, mrn: inv.patients.mrn } : null
+    );
+    setSelectedAppointment(
+      inv.appointments
+        ? {
+            id: inv.appointment_id,
+            date: inv.appointments.date,
+            time: inv.appointments.time,
+            type: inv.appointments.type,
+            patients: inv.appointments.patients,
+          }
+        : null
+    );
     setForm({
       invoice_no: inv.invoice_no ?? '',
       patient_id: inv.patient_id ?? '',
@@ -240,10 +240,18 @@ function Billing() {
 
   const handleField = (e) => {
     const { name, value } = e.target;
-    setForm((f) => {
-      if (name === 'patient_id') return { ...f, patient_id: value, appointment_id: '' };
-      return { ...f, [name]: value };
-    });
+    setForm((f) => ({ ...f, [name]: value }));
+  };
+
+  const handlePatientChange = (item) => {
+    setForm((f) => ({ ...f, patient_id: item?.id ?? '', appointment_id: '' }));
+    setSelectedPatient(item);
+    setSelectedAppointment(null);
+  };
+
+  const handleAppointmentChange = (item) => {
+    setForm((f) => ({ ...f, appointment_id: item?.id ?? '' }));
+    setSelectedAppointment(item);
   };
 
   const handleItemField = (key, field, value) => {
@@ -407,7 +415,10 @@ function Billing() {
     { label: 'Pending Invoices', value: stats.pendingAmount, color: 'info', icon: BiReceipt },
   ];
 
-  const currentPatientId = form.patient_id;
+  const appointmentLabel = (a) =>
+    `${a.patients?.name || 'Patient'} — ${formatDate(a.date)} ${formatTime(a.time)}${
+      a.type ? ` (${a.type})` : ''
+    }`;
 
   return (
     <main className="content">
@@ -642,28 +653,28 @@ function Billing() {
                     ))}
                   </select>
                 </label>
-                <label className="form-field form-field--full">
-                  <span>Patient *</span>
-                  <select name="patient_id" value={form.patient_id} onChange={handleField} disabled={saving} required>
-                    <option value="">Select patient</option>
-                    {patients.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.mrn})</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="form-field form-field--full">
-                  <span>Appointment (optional)</span>
-                  <select name="appointment_id" value={form.appointment_id} onChange={handleField} disabled={saving}>
-                    <option value="">No appointment linked</option>
-                    {appointments
-                      .filter((a) => !currentPatientId || a.patient_id === currentPatientId)
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.patients?.name || 'Patient'} — {formatDate(a.date)} {formatTime(a.time)} {a.type ? `(${a.type})` : ''}
-                        </option>
-                      ))}
-                  </select>
-                </label>
+                <AsyncSelect
+                  label="Patient"
+                  required
+                  placeholder="Search patient by name or MR number..."
+                  value={form.patient_id}
+                  selected={selectedPatient}
+                  onChange={handlePatientChange}
+                  search={(q) => searchPatientOptions(q, 20)}
+                  getLabel={(p) => `${p.name} (${p.mrn})`}
+                  disabled={saving}
+                />
+                <AsyncSelect
+                  label="Appointment (optional)"
+                  placeholder="Search appointments for the selected patient..."
+                  value={form.appointment_id}
+                  selected={selectedAppointment}
+                  onChange={handleAppointmentChange}
+                  search={(q) => searchAppointmentOptions(q, form.patient_id, 20)}
+                  getLabel={appointmentLabel}
+                  disabled={saving || !form.patient_id}
+                  key={form.patient_id || 'no-patient'}
+                />
                 <label className="form-field">
                   <span>Due Date</span>
                   <input type="date" name="due_date" value={form.due_date} onChange={handleField} disabled={saving} />

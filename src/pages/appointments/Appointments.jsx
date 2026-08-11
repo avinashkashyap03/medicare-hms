@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BiCalendarCheck, BiEdit, BiPlus, BiSearch, BiTrash } from 'react-icons/bi';
 import Modal from '@/components/common/Modal.jsx';
+import AsyncSelect from '@/components/common/AsyncSelect.jsx';
 import Spinner from '@/components/ui/Spinner.jsx';
 import { useAuth } from '@/context/AuthContext.jsx';
 import { useModal } from '@/hooks/useModal.js';
@@ -14,8 +15,8 @@ import {
   localDateString,
   updateAppointment,
 } from '@/services/appointments.js';
-import { fetchPatients } from '@/services/patients.js';
-import { fetchDoctors } from '@/services/doctors.js';
+import { searchPatientOptions } from '@/services/patients.js';
+import { searchDoctorOptions } from '@/services/doctors.js';
 import { fetchDepartments } from '@/services/departments.js';
 import { statusClass, titleCase } from '@/utils/status.js';
 
@@ -47,8 +48,6 @@ function initials(name) {
 function Appointments() {
   const { user } = useAuth();
   const [appointments, setAppointments] = useState([]);
-  const [patients, setPatients] = useState([]);
-  const [doctors, setDoctors] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [count, setCount] = useState(0);
   const [search, setSearch] = useState('');
@@ -63,21 +62,27 @@ function Appointments() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const aliveRef = useRef(true);
+  const seqRef = useRef(0);
 
+  // Unmount safety: prevents state updates after the page unmounts.
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
+  // Small option list for the form/filters — fetched once, no pagination needed.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      fetchPatients({ pageSize: 2000 }),
-      fetchDoctors({ pageSize: 2000 }),
-      fetchDepartments(),
-    ])
-      .then(([p, d, depts]) => {
-        if (cancelled) return;
-        setPatients(p.data ?? []);
-        setDoctors(d.data ?? []);
-        setDepartments(depts ?? []);
+    fetchDepartments()
+      .then((data) => {
+        if (!cancelled) setDepartments(data);
       })
-      .catch((err) => console.error('Failed to load form options:', err));
+      .catch((err) => console.error('Failed to load departments:', err));
     return () => {
       cancelled = true;
     };
@@ -94,34 +99,11 @@ function Appointments() {
     return () => clearTimeout(t);
   }, [search, debouncedSearch]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchAppointments({
-      search: debouncedSearch,
-      page,
-      pageSize: PAGE_SIZE,
-      status: filterStatus,
-      date: filterDate,
-    })
-      .then(({ data, count: total }) => {
-        if (cancelled) return;
-        setAppointments(data);
-        setCount(total);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error('Failed to load appointments:', err);
-        setError(err?.message || 'Failed to load appointments.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedSearch, page, filterStatus, filterDate]);
-
+  // Single source of truth for fetching — used on mount (via the effect
+  // below) and after every mutation. `seqRef` guards against stale
+  // responses racing ahead of newer requests.
   const load = useCallback(async () => {
+    const seq = ++seqRef.current;
     setLoading(true);
     setError('');
     try {
@@ -132,15 +114,24 @@ function Appointments() {
         status: filterStatus,
         date: filterDate,
       });
+      if (seq !== seqRef.current || !aliveRef.current) return;
       setAppointments(data);
       setCount(total);
     } catch (err) {
+      if (seq !== seqRef.current || !aliveRef.current) return;
       console.error('Failed to load appointments:', err);
       setError(err?.message || 'Failed to load appointments.');
     } finally {
-      setLoading(false);
+      if (seq === seqRef.current && aliveRef.current) setLoading(false);
     }
   }, [debouncedSearch, page, filterStatus, filterDate]);
+
+  useEffect(() => {
+    // Deferred so the initial fetch doesn't call setState synchronously
+    // inside the effect body (react-hooks/set-state-in-effect).
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
@@ -152,12 +143,27 @@ function Appointments() {
 
   const openAdd = () => {
     setEditing(null);
+    setSelectedPatient(null);
+    setSelectedDoctor(null);
     setForm({ ...EMPTY_FORM, date: localDateString() });
     open();
   };
 
   const openEdit = (a) => {
     setEditing(a);
+    setSelectedPatient(
+      a.patients ? { id: a.patient_id, name: a.patients.name, mrn: a.patients.mrn } : null
+    );
+    setSelectedDoctor(
+      a.doctors
+        ? {
+            id: a.doctor_id,
+            name: a.doctors.name,
+            department_id: a.doctors.department_id,
+            specialization: a.doctors.specialization,
+          }
+        : null
+    );
     setForm({
       patient_id: a.patient_id ?? '',
       doctor_id: a.doctor_id ?? '',
@@ -174,13 +180,21 @@ function Appointments() {
 
   const handleField = (e) => {
     const { name, value } = e.target;
-    setForm((f) => {
-      if (name === 'doctor_id') {
-        const doctor = doctors.find((d) => d.id === value);
-        return { ...f, doctor_id: value, department_id: doctor?.department_id ?? '' };
-      }
-      return { ...f, [name]: value };
-    });
+    setForm((f) => ({ ...f, [name]: value }));
+  };
+
+  const handlePatientChange = (item) => {
+    setForm((f) => ({ ...f, patient_id: item?.id ?? '' }));
+    setSelectedPatient(item);
+  };
+
+  const handleDoctorChange = (item) => {
+    setForm((f) => ({
+      ...f,
+      doctor_id: item?.id ?? '',
+      department_id: item?.department_id ?? '',
+    }));
+    setSelectedDoctor(item);
   };
 
   const handleSubmit = async (e) => {
@@ -430,24 +444,28 @@ function Appointments() {
         <Modal open onClose={close} header={editing ? 'Edit Appointment' : 'New Appointment'} blocked={saving}>
           <form className="patient-form" onSubmit={handleSubmit}>
               <div className="form-grid">
-                <label className="form-field form-field--full">
-                  <span>Patient *</span>
-                  <select name="patient_id" value={form.patient_id} onChange={handleField} disabled={saving} required>
-                    <option value="">Select patient</option>
-                    {patients.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.mrn})</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="form-field form-field--full">
-                  <span>Doctor *</span>
-                  <select name="doctor_id" value={form.doctor_id} onChange={handleField} disabled={saving} required>
-                    <option value="">Select doctor</option>
-                    {doctors.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name} — {d.specialization || 'General'}</option>
-                    ))}
-                  </select>
-                </label>
+                <AsyncSelect
+                  label="Patient"
+                  required
+                  placeholder="Search patient by name or MR number..."
+                  value={form.patient_id}
+                  selected={selectedPatient}
+                  onChange={handlePatientChange}
+                  search={(q) => searchPatientOptions(q, 20)}
+                  getLabel={(p) => `${p.name} (${p.mrn})`}
+                  disabled={saving}
+                />
+                <AsyncSelect
+                  label="Doctor"
+                  required
+                  placeholder="Search doctor by name or specialization..."
+                  value={form.doctor_id}
+                  selected={selectedDoctor}
+                  onChange={handleDoctorChange}
+                  search={(q) => searchDoctorOptions(q, 20)}
+                  getLabel={(d) => `${d.name} — ${d.specialization || 'General'}`}
+                  disabled={saving}
+                />
                 <label className="form-field">
                   <span>Department</span>
                   <input

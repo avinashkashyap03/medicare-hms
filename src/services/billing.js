@@ -8,7 +8,7 @@ import supabase from '@/services/supabase.js';
 import { ensureProfile } from '@/services/patients.js';
 
 const INVOICE_SELECT =
-  'id, invoice_no, patient_id, appointment_id, items, subtotal, tax, discount, total, paid_amount, status, due_date, created_by, created_at, updated_at, patients(name, mrn)';
+  'id, invoice_no, patient_id, appointment_id, items, subtotal, tax, discount, total, paid_amount, status, due_date, created_by, created_at, updated_at, patients(name, mrn), appointments(date, time, type, patients(name))';
 
 export const INVOICE_STATUS_OPTIONS = ['pending', 'paid', 'overdue', 'cancelled'];
 export const PAYMENT_METHODS = ['cash', 'card', 'upi', 'bank_transfer', 'insurance'];
@@ -43,19 +43,14 @@ function toFriendlyInvoiceError(error) {
   return error;
 }
 
-// Next unique invoice number (e.g. "INV-1042") — numeric max across all rows.
-// NOTE: text ordering is lexicographic, so we scan every value numerically.
+// Next unique invoice number (e.g. "INV-1042") — pulled from the
+// PostgreSQL `invoice_no_seq` sequence via RPC so concurrent
+// creates never collide.
 export async function getNextInvoiceNo() {
-  const { data, error } = await supabase.from('invoices').select('invoice_no');
+  const { data, error } = await supabase.rpc('next_invoice_no');
 
   if (error) throw error;
-
-  const max = (data ?? []).reduce((m, i) => {
-    const n = parseInt(String(i.invoice_no || '').replace(/\D/g, ''), 10);
-    return Number.isNaN(n) ? m : Math.max(m, n);
-  }, 1000);
-
-  return `INV-${max + 1}`;
+  return data;
 }
 
 // Resolve invoice IDs matching a search term. PostgREST cannot parse an or()
@@ -171,58 +166,13 @@ export async function getPendingInvoiceCount() {
   return count ?? 0;
 }
 
-// Billing summary for the page header — total collected, outstanding, overdue & pending
+// Billing summary for the page header — total collected, outstanding, overdue & pending.
+// Aggregated inside PostgreSQL (get_billing_stats RPC) instead of
+// transferring every invoice row into JavaScript.
 export async function getBillingStats() {
-  const { data, error } = await supabase.from('invoices').select('total, paid_amount, status, due_date');
+  const { data, error } = await supabase.rpc('get_billing_stats');
   if (error) throw error;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const isPastDue = (inv) => {
-    if (!inv?.due_date) return false;
-    const d = new Date(`${String(inv.due_date).slice(0, 10)}T00:00:00`);
-    return !Number.isNaN(d.getTime()) && d.getTime() < today.getTime();
-  };
-  const balanceOf = (inv) => Math.max(0, Number(inv.total || 0) - Number(inv.paid_amount || 0));
-
-  const list = data ?? [];
-  const collected = list.reduce(
-    (s, i) => (i.status === 'cancelled' ? s : s + Number(i.paid_amount || 0)),
-    0
-  );
-  const outstanding = list.reduce(
-    (s, i) =>
-      i.status === 'cancelled'
-        ? s
-        : s + Math.max(0, Number(i.total || 0) - Number(i.paid_amount || 0)),
-    0
-  );
-  // Overdue = any unpaid invoice whose due date has passed (plus any
-  // explicitly marked overdue). Ignore fully-paid and cancelled invoices.
-  const overdue = list.reduce((s, i) => {
-    if (i.status === 'cancelled') return s;
-    const bal = balanceOf(i);
-    if (bal <= 0) return s;
-    if (i.status === 'overdue' || (i.status === 'pending' && isPastDue(i))) return s + bal;
-    return s;
-  }, 0);
-  const pendingCount = list.filter((i) => i.status === 'pending').length;
-  const pendingAmount = list.reduce(
-    (s, i) =>
-      i.status === 'pending'
-        ? s + Math.max(0, Number(i.total || 0) - Number(i.paid_amount || 0))
-        : s,
-    0
-  );
-
-  return {
-    collected,
-    outstanding,
-    overdue,
-    pendingCount,
-    pendingAmount,
-    total: list.length,
-  };
+  return data;
 }
 
 // ---------- Payments ----------

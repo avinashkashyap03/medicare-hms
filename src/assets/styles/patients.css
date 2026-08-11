@@ -425,3 +425,89 @@
 .theme-dark .status-badge.inactive {
   background: var(--db-surface-alt, var(--db-bg));
 }
+
+/* ---------- AsyncSelect (search-as-you-type) ---------- */
+.async-select__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.async-select__control input {
+  flex: 1;
+}
+
+.async-select__clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--db-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.async-select__clear:hover {
+  color: var(--db-danger);
+  background: var(--db-danger-soft);
+}
+
+.async-select__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--db-card);
+  border: 1px solid var(--db-border);
+  border-radius: var(--db-radius-sm);
+  box-shadow: var(--db-shadow-hover);
+  padding: 4px;
+}
+
+.async-select__option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--db-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.async-select__option:hover,
+.async-select__option.is-selected {
+  background: var(--db-primary-soft);
+  color: var(--db-heading);
+}
+
+.async-select__status {
+  padding: 9px 10px;
+  font-size: 0.85rem;
+  color: var(--db-muted);
+}
+
+.async-select__status--error {
+  color: var(--db-danger);
+}
+
+.theme-dark .async-select__menu {
+  background: var(--db-card);
+  border-color: var(--db-border);
+}
+
+.theme-dark .async-select__option:hover,
+.theme-dark .async-select__option.is-selected {
+  background: var(--db-primary-soft);
+}
