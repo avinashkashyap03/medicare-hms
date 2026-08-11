@@ -1,0 +1,76 @@
+/* ------------------------------------------------------------------
+   MediCare HMS — Departments page
+   ------------------------------------------------------------------- */
+
+.dept-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.dept-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.dept-desc {
+  max-width: 280px;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+/* ---------- Color picker ---------- */
+.color-field {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.color-input {
+  width: 52px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--db-border);
+  border-radius: var(--db-radius-sm);
+  background: var(--db-bg);
+  cursor: pointer;
+}
+
+.color-input::-webkit-color-swatch-wrapper {
+  padding: 4px;
+}
+
+.color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
+.color-presets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.color-swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.color-swatch:hover {
+  transform: scale(1.12);
+}
+
+.color-swatch.active {
+  border-color: var(--db-card);
+  box-shadow: 0 0 0 2px var(--db-heading);
+}

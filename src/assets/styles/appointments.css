@@ -1,0 +1,107 @@
+/* ------------------------------------------------------------------
+   MediCare HMS — Appointments page
+   ------------------------------------------------------------------- */
+
+/* ---------- Toolbar filters ---------- */
+.toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbar-filter {
+  height: 42px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border-radius: var(--db-radius-sm);
+  border: 1px solid var(--db-border);
+  background: var(--db-bg);
+  color: var(--db-text);
+  font-size: 0.88rem;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.toolbar-filter:focus {
+  outline: none;
+  border-color: var(--db-primary);
+  box-shadow: 0 0 0 4px var(--db-primary-soft);
+  background: var(--db-card);
+}
+
+/* ---------- Inline status select ---------- */
+.status-select {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 26px 5px 11px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  font-family: inherit;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.status-select:hover {
+  filter: brightness(0.97);
+  transform: translateY(-1px);
+}
+
+.status-select--scheduled {
+  color: var(--db-primary);
+  background-color: var(--db-primary-soft);
+}
+
+.status-select--in-progress {
+  color: var(--db-warning);
+  background-color: var(--db-warning-soft);
+}
+
+.status-select--completed {
+  color: var(--db-success);
+  background-color: var(--db-success-soft);
+}
+
+.status-select--cancelled {
+  color: var(--db-danger);
+  background-color: var(--db-danger-soft);
+}
+
+.theme-dark .status-select--scheduled {
+  color: #93c5fd;
+  background-color: rgba(37, 99, 235, 0.25);
+}
+
+.theme-dark .status-select--in-progress {
+  color: #fcd34d;
+  background-color: rgba(245, 158, 11, 0.22);
+}
+
+.theme-dark .status-select--completed {
+  color: #6ee7b7;
+  background-color: rgba(16, 185, 129, 0.22);
+}
+
+.theme-dark .status-select--cancelled {
+  color: #fca5a5;
+  background-color: rgba(239, 68, 68, 0.22);
+}
+
+/* ---------- Dark mode refinements ---------- */
+.theme-dark .toolbar-filter {
+  background: var(--db-surface-alt, var(--db-card));
+}
+
+@media (max-width: 640px) {
+  .toolbar-filters {
+    width: 100%;
+  }
+}

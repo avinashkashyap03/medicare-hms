@@ -47,6 +47,12 @@ export function getFriendlyAuthError(error) {
   ) {
     return 'Too many attempts. Please wait a moment and try again.';
   }
+  if (code === 'otp_expired' || lower.includes('otp_expired')) {
+    return 'This link has expired. Please request a new one.';
+  }
+  if (code === 'access_denied' || lower.includes('access_denied')) {
+    return 'This password reset link is invalid or has already been used. Please request a new one.';
+  }
   if (
     lower.includes('expired') ||
     lower.includes('invalid code') ||
@@ -63,5 +69,29 @@ export function getFriendlyAuthError(error) {
     return 'Network error. Please check your connection and try again.';
   }
 
-  return 'Something went wrong. Please try again.';
+  return null;
+}
+
+// Derive a friendly display name from the (Supabase) auth user.
+// Prefers the stored full_name; otherwise falls back to the email prefix.
+export function getUserDisplay(user) {
+  const email = (user?.email ?? '').trim();
+  const metaName = ((user?.user_metadata?.full_name || user?.user_metadata?.name) ?? '').trim();
+  const emailName = email
+    .split('@')[0]
+    .trim()
+    .replace(/[._-]+/g, ' ')
+    .replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1));
+
+  const displayName = metaName || emailName || 'User';
+
+  const firstName = displayName.split(' ')[0];
+
+  const initials = displayName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => (w[0] ? w[0].toUpperCase() : ''))
+    .join('') || 'U';
+
+  return { displayName, firstName, initials, email };
 }

@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import supabase from '../services/supabase.js';
+import supabase from '@/services/supabase.js';
 
 const AuthContext = createContext(null);
 

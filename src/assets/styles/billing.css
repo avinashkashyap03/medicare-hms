@@ -1,0 +1,475 @@
+/* ------------------------------------------------------------------
+   MediCare HMS — Billing & Invoices page
+   ------------------------------------------------------------------- */
+
+/* ---------- Summary cards ---------- */
+.inv-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.inv-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.inv-summary-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 1.3rem;
+}
+
+.inv-summary-icon.success { color: var(--db-success); background: var(--db-success-soft); }
+.inv-summary-icon.warning { color: var(--db-warning); background: var(--db-warning-soft); }
+.inv-summary-icon.danger  { color: var(--db-danger);  background: var(--db-danger-soft); }
+.inv-summary-icon.info    { color: var(--db-info);    background: var(--db-info-soft); }
+
+.inv-summary-label {
+  margin: 0 0 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--db-muted);
+}
+
+.inv-summary-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--db-heading);
+}
+
+.inv-summary-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--db-muted);
+}
+
+@media (max-width: 1024px) {
+  .inv-summary { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .inv-summary { grid-template-columns: 1fr; }
+}
+
+/* ---------- Balance cell ---------- */
+.inv-balance {
+  color: var(--db-danger);
+  font-weight: 700;
+}
+
+/* ---------- Activity link (Recent Activity -> billing) ---------- */
+.activity-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 8px;
+  padding: 4px;
+  margin: -4px;
+  transition: background 0.15s ease;
+}
+
+.activity-link:hover {
+  background: var(--db-bg);
+}
+
+.theme-dark .activity-link:hover {
+  background: var(--db-surface-alt, var(--db-card));
+}
+
+/* ---------- Invoice status select ---------- */
+.status-select--pending {
+  color: var(--db-primary);
+  background-color: var(--db-primary-soft);
+}
+
+.status-select--paid {
+  color: var(--db-success);
+  background-color: var(--db-success-soft);
+}
+
+.status-select--overdue {
+  color: var(--db-danger);
+  background-color: var(--db-danger-soft);
+}
+
+.theme-dark .status-select--pending {
+  color: #93c5fd;
+  background-color: rgba(37, 99, 235, 0.25);
+}
+
+.theme-dark .status-select--paid {
+  color: #6ee7b7;
+  background-color: rgba(16, 185, 129, 0.22);
+}
+
+.theme-dark .status-select--overdue {
+  color: #fca5a5;
+  background-color: rgba(239, 68, 68, 0.22);
+}
+
+/* ---------- Status badge (invoice view) ---------- */
+.status-badge.pending {
+  color: var(--db-primary);
+  background: var(--db-primary-soft);
+}
+
+.status-badge.paid {
+  color: var(--db-success);
+  background: var(--db-success-soft);
+}
+
+.status-badge.overdue {
+  color: var(--db-danger);
+  background: var(--db-danger-soft);
+}
+
+/* ---------- Wide modal ---------- */
+.modal--lg {
+  max-width: 760px;
+  overflow-x: auto;
+}
+
+.btn-ghost--sm {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+}
+
+/* ---------- Invoice items table ---------- */
+.invoice-items {
+  min-width: 0;
+}
+
+.invoice-items td,
+.invoice-items th {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* ---------- Line items editor ---------- */
+.inv-items-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--db-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.inv-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inv-item-row {
+  display: grid;
+  grid-template-columns: 1fr 84px 110px 34px;
+  gap: 10px;
+  align-items: end;
+}
+
+.inv-item-label {
+  font-size: 0.78rem;
+}
+
+.inv-item-remove {
+  height: 40px;
+}
+
+.inv-item-remove:hover {
+  color: var(--db-danger) !important;
+  background: var(--db-danger-soft) !important;
+}
+
+@media (max-width: 640px) {
+  .inv-item-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .inv-item-remove {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+/* ---------- Totals ---------- */
+.inv-totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 14px 18px;
+  border-radius: var(--db-radius-sm);
+  background: var(--db-bg);
+  border: 1px solid var(--db-border);
+}
+
+.inv-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-width: 220px;
+  font-size: 0.9rem;
+  color: var(--db-muted);
+}
+
+.inv-total-row strong {
+  color: var(--db-heading);
+  font-weight: 700;
+}
+
+.inv-total-row--grand {
+  padding-top: 8px;
+  border-top: 1px solid var(--db-divider);
+  font-size: 1.05rem;
+}
+
+.inv-total-row--grand strong {
+  font-size: 1.15rem;
+  color: var(--db-primary);
+}
+
+.inv-total-row--paid strong {
+  color: var(--db-success);
+}
+
+.theme-dark .inv-totals {
+  background: var(--db-surface-alt, var(--db-card));
+}
+
+/* ---------- Printable invoice sheet ---------- */
+.invoice-sheet {
+  background: var(--db-card);
+  border: 1px solid var(--db-border);
+  border-radius: var(--db-radius);
+  padding: 28px;
+}
+
+.invoice-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--db-divider);
+  margin-bottom: 22px;
+}
+
+.invoice-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.invoice-brand strong {
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+  color: var(--db-heading);
+}
+
+.invoice-brand strong em {
+  color: var(--db-primary);
+  font-style: normal;
+}
+
+.invoice-brand span {
+  font-size: 0.82rem;
+  color: var(--db-muted);
+}
+
+.invoice-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 0.86rem;
+  color: var(--db-muted);
+}
+
+.invoice-meta h3 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+  letter-spacing: 0.18em;
+  color: var(--db-heading);
+}
+
+.invoice-meta .status-badge {
+  margin-top: 6px;
+}
+
+.invoice-bill-to {
+  margin-bottom: 20px;
+}
+
+.invoice-bill-label {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--db-muted);
+}
+
+.invoice-bill-to {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.invoice-bill-to span {
+  font-size: 0.84rem;
+  color: var(--db-muted);
+}
+
+.invoice-items {
+  margin-bottom: 20px;
+}
+
+.invoice-totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: 22px;
+}
+
+.invoice-payments .invoice-bill-label {
+  margin-bottom: 10px;
+}
+
+.inv-nopayments {
+  font-size: 0.86rem;
+}
+
+.invoice-foot {
+  margin: 22px 0 0;
+  padding-top: 16px;
+  border-top: 1px dashed var(--db-border);
+  font-size: 0.8rem;
+  color: var(--db-muted);
+}
+
+/* ---------- Print ---------- */
+.no-print {
+  /* keep modal chrome hidden during print */
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .modal-backdrop {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    padding: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    animation: none !important;
+  }
+
+  .modal.modal--print {
+    position: static !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  .print-area {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 8px !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .invoice-sheet {
+    background: #fff !important;
+    color: #0f172a !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 8px !important;
+  }
+
+  .invoice-head {
+    padding-bottom: 10px !important;
+    margin-bottom: 12px !important;
+    border-bottom-width: 1px !important;
+  }
+
+  .invoice-bill-to {
+    margin-bottom: 10px !important;
+  }
+
+  .invoice-items {
+    margin-bottom: 10px !important;
+  }
+
+  .invoice-totals {
+    margin-bottom: 10px !important;
+  }
+
+  .invoice-items th,
+  .invoice-items td {
+    padding: 6px 8px !important;
+  }
+
+  .invoice-foot {
+    margin-top: 10px !important;
+    padding-top: 8px !important;
+    border-top-width: 1px !important;
+  }
+
+  .invoice-sheet * {
+    background: transparent !important;
+    color: #0f172a !important;
+    border-color: #e2e8f0 !important;
+  }
+}
