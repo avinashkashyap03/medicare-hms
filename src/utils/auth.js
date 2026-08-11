@@ -47,6 +47,12 @@ export function getFriendlyAuthError(error) {
   ) {
     return 'Too many attempts. Please wait a moment and try again.';
   }
+  if (code === 'otp_expired' || lower.includes('otp_expired')) {
+    return 'This link has expired. Please request a new one.';
+  }
+  if (code === 'access_denied' || lower.includes('access_denied')) {
+    return 'This password reset link is invalid or has already been used. Please request a new one.';
+  }
   if (
     lower.includes('expired') ||
     lower.includes('invalid code') ||

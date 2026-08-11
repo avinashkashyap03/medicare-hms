@@ -12,6 +12,7 @@ import Spinner from '@/components/ui/Spinner.jsx';
 import { useAuth } from '@/context/AuthContext.jsx';
 import { useAuthSubmit } from '@/hooks/useAuthSubmit.js';
 import { usePasswordForm } from '@/hooks/usePasswordForm.js';
+import { getFriendlyAuthError } from '@/utils/auth.js';
 import supabase from '@/services/supabase.js';
 
 function ResetPassword() {
@@ -19,6 +20,7 @@ function ResetPassword() {
     usePasswordForm();
   const [checking, setChecking] = useState(true);
   const [invalid, setInvalid] = useState(false);
+  const [invalidMessage, setInvalidMessage] = useState('');
   const [done, setDone] = useState(false);
   const { exchangeRecoveryCode, updatePassword, signOut } = useAuth();
   const { error, loading, run, setError } = useAuthSubmit();
@@ -35,9 +37,31 @@ function ResetPassword() {
       const params = new URLSearchParams(window.location.search);
       const code = params.get('code');
 
+      const urlError = params.get('error');
+      const urlErrorCode = params.get('error_code');
+      const urlErrorDescription = params.get('error_description');
+
+      if (urlError || urlErrorCode || urlErrorDescription) {
+        const friendly = getFriendlyAuthError({
+          code: urlErrorCode,
+          message: urlErrorDescription || urlError,
+        });
+        setInvalidMessage(
+          friendly || 'This password reset link is invalid or has expired. Please request a new one.'
+        );
+        setInvalid(true);
+        setChecking(false);
+        return;
+      }
+
       if (code) {
-        await run(() => exchangeRecoveryCode(code));
+        const { ok } = await run(() => exchangeRecoveryCode(code));
         window.history.replaceState({}, document.title, window.location.pathname);
+        if (!ok) {
+          setInvalid(true);
+          setChecking(false);
+          return;
+        }
       }
 
       const { data } = await supabase.auth.getSession();
@@ -114,6 +138,7 @@ function ResetPassword() {
         </div>
 
         {error && <div className="auth-error">{error}</div>}
+        {invalidMessage && !error && <div className="auth-error">{invalidMessage}</div>}
 
         <Link to="/forgot-password" className="auth-submit">
           Request a new link <BiArrowFromRight />

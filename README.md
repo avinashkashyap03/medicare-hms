@@ -64,6 +64,24 @@ If you have users who signed up **before** the schema existed, also run the back
 007_backfill_profiles.sql
 ```
 
+## Supabase Auth URL Configuration
+
+The app sends `redirectTo: ${window.location.origin}/reset-password` for password reset emails (see `src/pages/auth/ForgotPassword.jsx`), so the redirect always points back to wherever the app is currently running.
+
+For Supabase to accept the redirect, configure the auth URLs in **Supabase Dashboard → Authentication → URL Configuration**:
+
+- **Site URL:** `https://<your-production-domain>` (Vercel URL or custom domain)
+- **Redirect URLs:** add one entry per environment, e.g.
+  - `http://localhost:5173/**`
+  - `https://<your-vercel-domain>/**`
+  - `https://<your-custom-domain>/**`
+
+If the current origin is missing from Redirect URLs, Supabase falls back to the Site URL — a leftover `http://localhost:5173` there is what causes deployed password reset links to redirect to localhost.
+
+## Vercel Deployment
+
+The repo includes a [`vercel.json`](./vercel.json) with a SPA rewrite so that client-side routes (e.g. `/reset-password`, `/patients`, `/doctors`) resolve to `index.html` instead of returning a Vercel 404 on direct navigation/reload. No extra configuration is needed for the password reset redirect — it is derived from `window.location.origin` at runtime.
+
 ## Available Scripts
 
 | Command          | Description                    |
