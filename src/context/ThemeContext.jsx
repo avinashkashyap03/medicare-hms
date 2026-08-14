@@ -21,7 +21,9 @@ export function ThemeProvider({ children }) {
   const [dark, setDark] = useState(getInitialDark);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('theme-dark', dark);
+    const root = document.documentElement;
+    root.classList.toggle('theme-dark', dark);
+    root.style.backgroundColor = dark ? '#0f172a' : '#f8fafc';
   }, [dark]);
 
   const toggleTheme = () => {
