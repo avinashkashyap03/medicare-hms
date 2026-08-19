@@ -114,7 +114,7 @@ where p.id = u.id
   and u.email = 'your-email@hospital.com';
 ```
 
-Then refresh the app. Future role/status changes are done through the admin-only functions `public.admin_approve_staff(target_user_id, role, reason)` (approve + assign role), `public.admin_set_user_status(target_user_id, status, reason)`, and `public.admin_set_user_role(email, role)`.
+Then refresh the app. Future role/status changes are done through the admin-only functions `public.admin_approve_staff(email, role, reason)` (approve + assign role, atomically activates the account), `public.admin_set_user_status(target_user_id, status, reason)`, and `public.admin_set_user_role(email, role, reason)`. Pending accounts are listed with their email via the admin-only `public.admin_list_pending_profiles()` RPC. Assignable roles are currently limited to `staff` and `receptionist`; the `admin` role is never assignable through these functions.
 
 ## Supabase Auth URL Configuration
 

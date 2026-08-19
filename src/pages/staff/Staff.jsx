@@ -46,7 +46,9 @@ const EMPTY_FORM = {
 
 const DEFAULT_STATS = { total: 0, active: 0, onLeave: 0, inactive: 0 };
 
-const APPROVAL_ROLES = ['staff', 'receptionist', 'doctor', 'nurse', 'pharmacist'];
+// Initial assignable roles. Deliberately excludes admin (and the other
+// legacy roles) — the database function enforces the same whitelist.
+const APPROVAL_ROLES = ['staff', 'receptionist'];
 
 function formatDate(value) {
   if (!value) return '—';
@@ -83,6 +85,7 @@ function Staff() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const { isOpen, open, close } = useModal();
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -90,7 +93,7 @@ function Staff() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [pendingAccounts, setPendingAccounts] = useState([]);
   const [approvalTarget, setApprovalTarget] = useState(null);
-  const [approvalRole, setApprovalRole] = useState('staff');
+  const [approvalRole, setApprovalRole] = useState('receptionist');
   const [approvalReason, setApprovalReason] = useState('');
   const [statusTarget, setStatusTarget] = useState(null);
   const [statusAction, setStatusAction] = useState('');
@@ -220,6 +223,7 @@ function Staff() {
     if (!form.name.trim() || !form.designation.trim()) return;
     setSaving(true);
     setError('');
+    setSuccess('');
     try {
       const payload = {
         name: form.name.trim(),
@@ -252,6 +256,7 @@ function Staff() {
     if (!deleteTarget) return;
     setSaving(true);
     setError('');
+    setSuccess('');
     try {
       await deleteStaff(deleteTarget.id);
       setDeleteTarget(null);
@@ -269,11 +274,14 @@ function Staff() {
     if (!approvalReason.trim()) return;
     setSaving(true);
     setError('');
+    setSuccess('');
     try {
-      await approveStaff(approvalTarget.id, approvalRole, approvalReason.trim());
+      await approveStaff(approvalTarget.email, approvalRole, approvalReason.trim());
+      const roleLabel = getRoleLabel(approvalRole);
+      setSuccess(`${approvalTarget.full_name} approved — role set to ${roleLabel}, account activated.`);
       setApprovalTarget(null);
       setApprovalReason('');
-      setApprovalRole('staff');
+      setApprovalRole('receptionist');
       await Promise.all([load(), loadApprovals()]);
     } catch (err) {
       console.error('Failed to approve account:', err);
@@ -288,8 +296,10 @@ function Staff() {
     if (!approvalReason.trim()) return;
     setSaving(true);
     setError('');
+    setSuccess('');
     try {
       await setUserStatus(approvalTarget.id, 'deactivated', approvalReason.trim());
+      setSuccess(`${approvalTarget.full_name} rejected — account deactivated.`);
       setApprovalTarget(null);
       setApprovalReason('');
       await loadApprovals();
@@ -306,8 +316,10 @@ function Staff() {
     if (statusAction !== 'active' && !statusReason.trim()) return;
     setSaving(true);
     setError('');
+    setSuccess('');
     try {
       await setUserStatus(statusTarget.id, statusAction, statusReason.trim());
+      setSuccess(`${statusTarget.name}'s account is now ${getStatusLabel(statusAction).toLowerCase()}.`);
       setStatusTarget(null);
       setStatusAction('');
       setStatusReason('');
@@ -365,6 +377,86 @@ function Staff() {
       </section>
 
       {error && <div className="page-alert page-alert--danger">{error}</div>}
+      {success && <div className="page-alert page-alert--success">{success}</div>}
+
+      {isAdmin && pendingAccounts.length > 0 && (
+        <section className="card widget">
+          <div className="toolbar-row">
+            <div className="toolbar-search">
+              <BiHourglass />
+              <span className="approvals-title">
+                Pending Account Approvals
+                <small>{pendingAccounts.length} account{pendingAccounts.length > 1 ? 's' : ''} awaiting review</small>
+              </span>
+            </div>
+          </div>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Current Role</th>
+                  <th>Signed Up</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingAccounts.map((acc) => (
+                  <tr key={acc.id}>
+                    <td>
+                      <div className="cell-patient">
+                        <span className="initials">{initials(acc.full_name)}</span>
+                        <div className="patient-info">
+                          <strong>{acc.full_name}</strong>
+                          <span className="account-status-pill pending">{getStatusLabel(acc.status)}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{acc.email || '—'}</td>
+                    <td>{getRoleLabel(acc.role)}</td>
+                    <td>{formatDate(acc.created_at)}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="icon-btn--sm icon-btn--sm-success"
+                          aria-label={`Approve ${acc.full_name}`}
+                          title="Approve & assign role"
+                          onClick={() => {
+                            setApprovalTarget(acc);
+                            setApprovalRole('receptionist');
+                            setApprovalReason('');
+                            setError('');
+                            setSuccess('');
+                          }}
+                        >
+                          <BiUserCheck />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn--sm icon-btn--sm-danger"
+                          aria-label={`Reject ${acc.full_name}`}
+                          title="Reject"
+                          onClick={() => {
+                            setApprovalTarget(acc);
+                            setApprovalRole('');
+                            setApprovalReason('');
+                            setError('');
+                            setSuccess('');
+                          }}
+                        >
+                          <BiUserX />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="card widget">
         <div className="toolbar-row">
@@ -609,85 +701,10 @@ function Staff() {
                 <label className="form-field">
                   <span>Hire Date</span>
                   <input type="date" name="hire_date" value={form.hire_date} onChange={handleField} disabled={saving} />
-                </label>
+</label>
               </div>
 
-{isAdmin && pendingAccounts.length > 0 && (
-        <section className="card widget">
-          <div className="toolbar-row">
-            <div className="toolbar-search">
-              <BiHourglass />
-              <span className="approvals-title">
-                Pending Account Approvals
-                <small>{pendingAccounts.length} account{pendingAccounts.length > 1 ? 's' : ''} awaiting review</small>
-              </span>
-            </div>
-          </div>
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Current Role</th>
-                  <th>Signed Up</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingAccounts.map((acc) => (
-                  <tr key={acc.id}>
-                    <td>
-                      <div className="cell-patient">
-                        <span className="initials">{initials(acc.full_name)}</span>
-                        <div className="patient-info">
-                          <strong>{acc.full_name}</strong>
-                          <span className="account-status-pill pending">{getStatusLabel(acc.status)}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{getRoleLabel(acc.role)}</td>
-                    <td>{formatDate(acc.created_at)}</td>
-                    <td>
-                      <div className="row-actions">
-                        <button
-                          type="button"
-                          className="icon-btn--sm icon-btn--sm-success"
-                          aria-label={`Approve ${acc.full_name}`}
-                          title="Approve"
-                          onClick={() => {
-                            setApprovalTarget(acc);
-                            setApprovalRole('staff');
-                            setApprovalReason('');
-                            setError('');
-                          }}
-                        >
-                          <BiUserCheck />
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-btn--sm icon-btn--sm-danger"
-                          aria-label={`Reject ${acc.full_name}`}
-                          title="Reject"
-                          onClick={() => {
-                            setApprovalTarget(acc);
-                            setApprovalRole('');
-                            setApprovalReason('');
-                            setError('');
-                          }}
-                        >
-                          <BiUserX />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {error && <div className="page-alert page-alert--danger">{error}</div>}
+              {error && <div className="page-alert page-alert--danger">{error}</div>}
 
               <div className="modal-actions">
                 <button type="button" className="btn-ghost" onClick={close} disabled={saving}>
@@ -719,7 +736,7 @@ function Staff() {
         </Modal>
       )}
     {approvalTarget && approvalRole && (
-        <Modal open onClose={() => setApprovalTarget(null)} header={`Approve ${approvalTarget.full_name}`} showClose={false} size="sm" variant="alertdialog" blocked={saving}>
+        <Modal open onClose={() => setApprovalTarget(null)} header={`Approve & Assign Role — ${approvalTarget.full_name}`} showClose={false} size="sm" variant="alertdialog" blocked={saving}>
           <p className="modal-body-text">
             Approve <strong>{approvalTarget.full_name}</strong> and assign a role? The account
             will be activated immediately.
@@ -738,7 +755,7 @@ function Staff() {
               rows={2}
               value={approvalReason}
               onChange={(e) => setApprovalReason(e.target.value)}
-              placeholder="e.g. Interviewed and cleared on Jul 12"
+              placeholder="e.g. Approved for reception/front-desk duties"
               disabled={saving}
             />
           </label>
@@ -748,7 +765,7 @@ function Staff() {
               Cancel
             </button>
             <button type="button" className="btn-primary" onClick={handleApprove} disabled={saving || !approvalReason.trim()}>
-              {saving ? 'Approving...' : 'Approve & Activate'}
+              {saving ? 'Approving...' : 'Approve & Assign'}
             </button>
           </div>
         </Modal>
