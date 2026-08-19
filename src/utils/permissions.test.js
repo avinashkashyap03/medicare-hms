@@ -46,12 +46,18 @@ describe('can', () => {
     expect(can('staff', 'departments', 'create')).toBe(false);
   });
 
-  it('treats unknown/legacy roles as staff-level operational users', () => {
+  it('treats known legacy roles as staff-level operational users', () => {
     expect(can('doctor', 'patients', 'delete')).toBe(true);
     expect(can('nurse', 'billing', 'collect_payment')).toBe(true);
     expect(can('pharmacist', 'reports', 'view')).toBe(true);
     expect(can('user', 'appointments', 'create')).toBe(true);
-    expect(can(null, 'patients', 'view')).toBe(true);
+  });
+
+  it('denies a missing role instead of falling back to staff', () => {
+    expect(can(null, 'patients', 'view')).toBe(false);
+    expect(can(undefined, 'billing', 'view')).toBe(false);
+    expect(canAny(null, 'patients')).toBe(false);
+    expect(can('', 'appointments', 'view')).toBe(false);
   });
 
   it('denies unknown modules/actions', () => {
