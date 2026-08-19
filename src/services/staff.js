@@ -101,25 +101,24 @@ export async function getStaffStats() {
 
 // ---------- Account approvals (admin) ----------
 
-// Accounts awaiting an administrator's approval. RLS lets admins read
-// every profile, so this is admin-only in practice.
+// Accounts awaiting an administrator's approval, with their auth email.
+// Admin-only SECURITY DEFINER RPC (profiles has no email column and
+// PostgREST cannot join auth.users, so the client reads emails this way).
 export async function fetchPendingProfiles() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, full_name, role, status, created_at')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
-
+  const { data, error } = await supabase.rpc('admin_list_pending_profiles');
   if (error) throw error;
   return data ?? [];
 }
 
-// Atomic approval: sets role + status='active' in one update (RPC).
-export async function approveStaff(profileId, role, reason) {
+// Atomic approval via the secure RPC: sets role + status='active' in one
+// database update. The client only supplies the target's email; the
+// function resolves the profile, validates the caller, and writes the
+// audit log. The frontend never touches profiles.role/status directly.
+export async function approveStaff(email, role, reason) {
   const { error } = await supabase.rpc('admin_approve_staff', {
-    p_target: profileId,
-    p_role: role,
-    p_reason: reason,
+    target_email: email,
+    new_role: role,
+    reason,
   });
   if (error) throw error;
 }
