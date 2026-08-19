@@ -41,6 +41,9 @@ export function AuthProvider({ children }) {
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       const sessionUser = session?.user ?? null;
       setUser(sessionUser);
+      // getSession() and this callback race on slow connections; whichever
+      // resolves first must clear the initial loading state.
+      if (active) setLoading(false);
       void fetchProfile(sessionUser).then((prof) => {
         if (active) setProfile(prof);
       });

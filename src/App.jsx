@@ -38,9 +38,17 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/patients" element={<Patients />} />
-              <Route path="/doctors" element={<Doctors />} />
-              <Route path="/appointments" element={<Appointments />} />
+
+              <Route element={<PermissionRoute module="patients" />}>
+                <Route path="/patients" element={<Patients />} />
+              </Route>
+              <Route element={<PermissionRoute module="doctors" />}>
+                <Route path="/doctors" element={<Doctors />} />
+              </Route>
+              <Route element={<PermissionRoute module="appointments" />}>
+                <Route path="/appointments" element={<Appointments />} />
+              </Route>
+
               <Route path="/profile" element={<Profile />} />
 
               <Route element={<PermissionRoute module="departments" />}>

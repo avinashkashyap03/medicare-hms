@@ -39,6 +39,10 @@ import {
 
 const PAGE_SIZE = 10;
 
+function printPage() {
+  window.print();
+}
+
 const EMPTY_FORM = {
   invoice_no: '',
   patient_id: '',
@@ -327,11 +331,15 @@ function Billing() {
     }
   };
 
-  const openPayment = (invoice) => {
+  const openPayment = useCallback((invoice) => {
     setPaymentTarget(invoice);
     const balance = Math.max(0, Number(invoice.total || 0) - Number(invoice.paid_amount || 0));
     setPaymentForm({ amount: balance ? balance.toFixed(2) : '', method: 'cash', transaction_id: '' });
-  };
+  }, []);
+
+  const handleRecordPayment = useCallback(() => {
+    openPayment(viewTarget);
+  }, [openPayment, viewTarget]);
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
@@ -977,10 +985,10 @@ function Billing() {
           className="modal--print"
           headerActions={
             <>
-              <button type="button" className="btn-ghost" onClick={() => openPayment(viewTarget)}>
+              <button type="button" className="btn-ghost" onClick={handleRecordPayment}>
                 <BiDollar /> Record Payment
               </button>
-              <button type="button" className="btn-primary" onClick={() => window.print()}>
+              <button type="button" className="btn-primary" onClick={printPage}>
                 <BiPrinter /> Print
               </button>
             </>

@@ -15,6 +15,10 @@ import { fetchReportSummary } from '@/services/reports.js';
 const R = 62;
 const CIRC = 2 * Math.PI * R;
 
+function printPage() {
+  window.print();
+}
+
 function formatCurrency(value) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -154,7 +158,7 @@ function Reports() {
           </h1>
           <p className="welcome-sub">Live operational insights across patients, appointments and revenue.</p>
         </div>
-        <button type="button" className="btn-ghost" onClick={() => window.print()}>
+        <button type="button" className="btn-ghost" onClick={printPage}>
           Print Report
         </button>
       </section>

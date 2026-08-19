@@ -8,6 +8,10 @@
 // front-desk. Staff is general operational access; any legacy role
 // (doctor/nurse/pharmacist/user) falls through to the staff map so
 // pre-existing accounts keep working until future role phases.
+//
+// A missing/unknown role (null, undefined, or any value with no map
+// entry) is DENIED by default — a failed profile fetch must never
+// surface staff-level UI that the database will then silently block.
 
 export const ROLE_PERMISSIONS = {
   receptionist: {
@@ -34,12 +38,14 @@ export const ROLE_PERMISSIONS = {
 
 export function can(role, module, action) {
   if (role === 'admin') return true;
+  if (!role) return false;
   const perms = ROLE_PERMISSIONS[role] ?? ROLE_PERMISSIONS.staff;
   return Array.isArray(perms[module]) && perms[module].includes(action);
 }
 
 export function canAny(role, module) {
   if (role === 'admin') return true;
+  if (!role) return false;
   const perms = ROLE_PERMISSIONS[role] ?? ROLE_PERMISSIONS.staff;
   return Array.isArray(perms[module]) && perms[module].length > 0;
 }
