@@ -8,6 +8,7 @@ import {
 } from 'react-icons/bi';
 import { recentActivity } from '@/data/mockData.js';
 import WidgetHeader from './WidgetHeader.jsx';
+import { useAuth } from '@/context/AuthContext.jsx';
 
 const iconMap = {
   appointment: BiCalendarPlus,
@@ -18,6 +19,9 @@ const iconMap = {
 };
 
 function RecentActivity() {
+  const { can } = useAuth();
+  const canViewBilling = can('billing', 'view');
+
   return (
     <section className="card widget">
       <WidgetHeader
@@ -39,7 +43,16 @@ function RecentActivity() {
               </div>
             </>
           );
-          return <li key={i}>{a.icon === 'invoice' ? <Link to="/billing" className="activity-link">{inner}</Link> : inner}</li>;
+          const isInvoice = a.icon === 'invoice';
+          return (
+            <li key={i}>
+              {isInvoice && canViewBilling ? (
+                <Link to="/billing" className="activity-link">{inner}</Link>
+              ) : (
+                inner
+              )}
+            </li>
+          );
         })}
       </ul>
     </section>

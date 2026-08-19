@@ -43,7 +43,7 @@ function formatFee(fee) {
 }
 
 function Doctors() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const [doctors, setDoctors] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [count, setCount] = useState(0);
@@ -209,9 +209,11 @@ function Doctors() {
           </h1>
           <p className="welcome-sub">{count} doctor records — shared across all staff.</p>
         </div>
-        <button type="button" className="btn-primary" onClick={openAdd}>
-          <BiPlus /> New Doctor
-        </button>
+        {can('doctors', 'create') && (
+          <button type="button" className="btn-primary" onClick={openAdd}>
+            <BiPlus /> New Doctor
+          </button>
+        )}
       </section>
 
       {error && <div className="page-alert page-alert--danger">{error}</div>}
@@ -273,7 +275,11 @@ function Doctors() {
                       <td className="strong">{p.specialization || '—'}</td>
                       <td>
                         {p.departments ? (
-                          <Link to="/departments" className="cell-link">{p.departments.name}</Link>
+                          can('departments', 'view') ? (
+                            <Link to="/departments" className="cell-link">{p.departments.name}</Link>
+                          ) : (
+                            p.departments.name
+                          )
                         ) : (
                           '—'
                         )}
@@ -291,22 +297,26 @@ function Doctors() {
                       </td>
                       <td>
                         <div className="row-actions">
-                          <button
-                            type="button"
-                            className="icon-btn--sm"
-                            aria-label={`Edit ${p.name}`}
-                            onClick={() => openEdit(p)}
-                          >
-                            <BiEdit />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn--sm icon-btn--sm-danger"
-                            aria-label={`Delete ${p.name}`}
-                            onClick={() => setDeleteTarget(p)}
-                          >
-                            <BiTrash />
-                          </button>
+                          {can('doctors', 'update') && (
+                            <button
+                              type="button"
+                              className="icon-btn--sm"
+                              aria-label={`Edit ${p.name}`}
+                              onClick={() => openEdit(p)}
+                            >
+                              <BiEdit />
+                            </button>
+                          )}
+                          {can('doctors', 'delete') && (
+                            <button
+                              type="button"
+                              className="icon-btn--sm icon-btn--sm-danger"
+                              aria-label={`Delete ${p.name}`}
+                              onClick={() => setDeleteTarget(p)}
+                            >
+                              <BiTrash />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -12,7 +12,7 @@ import {
 import { FiChevronDown } from 'react-icons/fi';
 import { useAuth } from '@/context/AuthContext.jsx';
 import { useTheme } from '@/context/ThemeContext.jsx';
-import { getUserDisplay } from '@/utils/auth.js';
+import { getUserDisplay, getRoleLabel } from '@/utils/auth.js';
 import { fetchPatients } from '@/services/patients.js';
 import { fetchDoctors } from '@/services/doctors.js';
 import Spinner from '@/components/ui/Spinner.jsx';
@@ -29,7 +29,7 @@ function initialsOf(name) {
 const palette = ['#2563eb', '#8b5cf6', '#0ea5e9', '#f59e0b', '#10b981'];
 
 function Topbar({ onOpenSidebar }) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, role, can } = useAuth();
   const { dark, toggleTheme } = useTheme();
   const { displayName, initials, email } = getUserDisplay(user);
   const navigate = useNavigate();
@@ -208,7 +208,7 @@ function Topbar({ onOpenSidebar }) {
             <span className="avatar">{initials}</span>
             <div className="topbar-admin-info">
               <strong>{displayName}</strong>
-              <span>Hospital Admin</span>
+              <span>{getRoleLabel(role)}</span>
             </div>
             <FiChevronDown className={`topbar-admin-caret ${menuOpen ? 'open' : ''}`} />
           </button>
@@ -225,9 +225,11 @@ function Topbar({ onOpenSidebar }) {
               <Link to="/profile" onClick={() => setMenuOpen(false)} role="menuitem">
                 <BiUser /> My Profile
               </Link>
-              <Link to="/settings" onClick={() => setMenuOpen(false)} role="menuitem">
-                <BiCog /> Settings
-              </Link>
+              {can('settings', 'view') && (
+                <Link to="/settings" onClick={() => setMenuOpen(false)} role="menuitem">
+                  <BiCog /> Settings
+                </Link>
+              )}
               <div className="profile-menu-divider" />
               <button type="button" onClick={handleSignOut} role="menuitem">
                 <BiLogOut /> Logout

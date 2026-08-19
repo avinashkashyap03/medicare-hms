@@ -7,7 +7,7 @@ import supabase from '@/services/supabase.js';
 import { ensureProfile } from '@/services/patients.js';
 
 const STAFF_SELECT =
-  'id, user_id, name, designation, department_id, phone, email, shift, salary, hire_date, status, created_by, created_at, updated_at, departments(name, color)';
+  'id, user_id, name, designation, department_id, phone, email, shift, salary, hire_date, status, created_by, created_at, updated_at, departments(name, color), profiles!staff_user_id_fkey(status, role)';
 
 export const STAFF_STATUS_OPTIONS = ['active', 'on_leave', 'inactive'];
 
@@ -97,4 +97,39 @@ export async function getStaffStats() {
   const { data, error } = await supabase.rpc('get_staff_stats');
   if (error) throw error;
   return data;
+}
+
+// ---------- Account approvals (admin) ----------
+
+// Accounts awaiting an administrator's approval. RLS lets admins read
+// every profile, so this is admin-only in practice.
+export async function fetchPendingProfiles() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, role, status, created_at')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Atomic approval: sets role + status='active' in one update (RPC).
+export async function approveStaff(profileId, role, reason) {
+  const { error } = await supabase.rpc('admin_approve_staff', {
+    p_target: profileId,
+    p_role: role,
+    p_reason: reason,
+  });
+  if (error) throw error;
+}
+
+// Suspend / deactivate / reactivate an account (RPC).
+export async function setUserStatus(profileId, status, reason) {
+  const { error } = await supabase.rpc('admin_set_user_status', {
+    p_target: profileId,
+    p_status: status,
+    p_reason: reason,
+  });
+  if (error) throw error;
 }

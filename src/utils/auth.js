@@ -1,3 +1,33 @@
+// RBAC role helpers. 'admin' has full access; 'receptionist' is
+// read-mostly front-desk; everything else (staff, doctor, nurse,
+// pharmacist, ...) is treated as a general operational user until a
+// future phase activates role-specific behaviour.
+export const isAdminRole = (role) => role === 'admin';
+
+const ROLE_LABELS = {
+  admin: 'Administrator',
+  receptionist: 'Receptionist',
+  staff: 'Staff',
+  doctor: 'Doctor',
+  nurse: 'Nurse',
+  pharmacist: 'Pharmacist',
+};
+
+export function getRoleLabel(role) {
+  return ROLE_LABELS[role] ?? 'User';
+}
+
+const STATUS_LABELS = {
+  pending: 'Pending Approval',
+  active: 'Active',
+  suspended: 'Suspended',
+  deactivated: 'Deactivated',
+};
+
+export function getStatusLabel(status) {
+  return STATUS_LABELS[status] ?? 'Unknown';
+}
+
 export function validatePassword(password) {
   if (!password || password.length < 8) {
     return 'Password must be at least 8 characters long.';

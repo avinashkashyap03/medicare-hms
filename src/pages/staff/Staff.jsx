@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BiEdit,
   BiGroup,
+  BiHourglass,
+  BiLockAlt,
   BiPlus,
   BiSearch,
   BiTrash,
-  BiUserCircle,
   BiUserCheck,
+  BiUserCircle,
   BiUserX,
 } from 'react-icons/bi';
 import Modal from '@/components/common/Modal.jsx';
@@ -14,13 +16,17 @@ import Spinner from '@/components/ui/Spinner.jsx';
 import { useAuth } from '@/context/AuthContext.jsx';
 import { useModal } from '@/hooks/useModal.js';
 import { titleCase } from '@/utils/status.js';
+import { getRoleLabel, getStatusLabel } from '@/utils/auth.js';
 import { fetchDepartments } from '@/services/departments.js';
 import {
   STAFF_STATUS_OPTIONS,
   addStaff,
+  approveStaff,
   deleteStaff,
+  fetchPendingProfiles,
   fetchStaffPage,
   getStaffStats,
+  setUserStatus,
   updateStaff,
 } from '@/services/staff.js';
 
@@ -40,6 +46,16 @@ const EMPTY_FORM = {
 
 const DEFAULT_STATS = { total: 0, active: 0, onLeave: 0, inactive: 0 };
 
+const APPROVAL_ROLES = ['staff', 'receptionist', 'doctor', 'nurse', 'pharmacist'];
+
+function formatDate(value) {
+  if (!value) return '—';
+  const raw = String(value);
+  const d = new Date(raw.length <= 10 ? `${raw}T00:00:00` : raw);
+  if (Number.isNaN(d.getTime())) return raw.slice(0, 10);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function initials(name) {
   return String(name || '')
     .split(' ')
@@ -55,16 +71,8 @@ function formatCurrency(value) {
   );
 }
 
-function formatDate(value) {
-  if (!value) return '—';
-  const raw = String(value);
-  const d = new Date(raw.length <= 10 ? `${raw}T00:00:00` : raw);
-  if (Number.isNaN(d.getTime())) return raw.slice(0, 10);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 function Staff() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [staffList, setStaffList] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [stats, setStats] = useState(DEFAULT_STATS);
@@ -80,6 +88,13 @@ function Staff() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [pendingAccounts, setPendingAccounts] = useState([]);
+  const [approvalTarget, setApprovalTarget] = useState(null);
+  const [approvalRole, setApprovalRole] = useState('staff');
+  const [approvalReason, setApprovalReason] = useState('');
+  const [statusTarget, setStatusTarget] = useState(null);
+  const [statusAction, setStatusAction] = useState('');
+  const [statusReason, setStatusReason] = useState('');
   const aliveRef = useRef(true);
   const seqRef = useRef(0);
 
@@ -114,6 +129,22 @@ function Staff() {
     }, 350);
     return () => clearTimeout(t);
   }, [search, debouncedSearch]);
+
+  const loadApprovals = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const accounts = await fetchPendingProfiles();
+      if (aliveRef.current) setPendingAccounts(accounts);
+    } catch (err) {
+      console.error('Failed to load pending approvals:', err);
+      if (aliveRef.current) setPendingAccounts([]);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    const t = setTimeout(loadApprovals, 0);
+    return () => clearTimeout(t);
+  }, [loadApprovals]);
 
   // Single source of truth for fetching — used on mount (via the effect
   // below) and after every mutation. `seqRef` guards against stale
@@ -228,6 +259,62 @@ function Staff() {
     } catch (err) {
       console.error('Failed to delete staff member:', err);
       setError(err?.message || 'Failed to delete staff member.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!approvalTarget) return;
+    if (!approvalReason.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      await approveStaff(approvalTarget.id, approvalRole, approvalReason.trim());
+      setApprovalTarget(null);
+      setApprovalReason('');
+      setApprovalRole('staff');
+      await Promise.all([load(), loadApprovals()]);
+    } catch (err) {
+      console.error('Failed to approve account:', err);
+      setError(err?.message || 'Failed to approve account.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!approvalTarget) return;
+    if (!approvalReason.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      await setUserStatus(approvalTarget.id, 'deactivated', approvalReason.trim());
+      setApprovalTarget(null);
+      setApprovalReason('');
+      await loadApprovals();
+    } catch (err) {
+      console.error('Failed to reject account:', err);
+      setError(err?.message || 'Failed to reject account.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAccountStatus = async () => {
+    if (!statusTarget || !statusAction) return;
+    if (statusAction !== 'active' && !statusReason.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      await setUserStatus(statusTarget.id, statusAction, statusReason.trim());
+      setStatusTarget(null);
+      setStatusAction('');
+      setStatusReason('');
+      await Promise.all([load(), loadApprovals()]);
+    } catch (err) {
+      console.error('Failed to update account status:', err);
+      setError(err?.message || 'Failed to update account status.');
     } finally {
       setSaving(false);
     }
@@ -350,6 +437,11 @@ function Staff() {
                             <div className="patient-info">
                               <strong>{member.name}</strong>
                               <span>{member.email || member.phone || ''}</span>
+                              {member.profiles?.status && (
+                                <span className={`account-status-pill ${member.profiles.status}`}>
+                                  {getStatusLabel(member.profiles.status)}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -366,6 +458,22 @@ function Staff() {
                         </td>
                         <td>
                           <div className="row-actions">
+                            {isAdmin && member.user_id && (
+                              <button
+                                type="button"
+                                className="icon-btn--sm"
+                                aria-label={`Manage account for ${member.name}`}
+                                title="Manage account status"
+                                onClick={() => {
+                                  setStatusTarget(member);
+                                  setStatusAction(member.profiles?.status === 'suspended' ? 'active' : 'suspended');
+                                  setStatusReason('');
+                                  setError('');
+                                }}
+                              >
+                                <BiLockAlt />
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="icon-btn--sm"
@@ -504,7 +612,82 @@ function Staff() {
                 </label>
               </div>
 
-              {error && <div className="page-alert page-alert--danger">{error}</div>}
+{isAdmin && pendingAccounts.length > 0 && (
+        <section className="card widget">
+          <div className="toolbar-row">
+            <div className="toolbar-search">
+              <BiHourglass />
+              <span className="approvals-title">
+                Pending Account Approvals
+                <small>{pendingAccounts.length} account{pendingAccounts.length > 1 ? 's' : ''} awaiting review</small>
+              </span>
+            </div>
+          </div>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Current Role</th>
+                  <th>Signed Up</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingAccounts.map((acc) => (
+                  <tr key={acc.id}>
+                    <td>
+                      <div className="cell-patient">
+                        <span className="initials">{initials(acc.full_name)}</span>
+                        <div className="patient-info">
+                          <strong>{acc.full_name}</strong>
+                          <span className="account-status-pill pending">{getStatusLabel(acc.status)}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{getRoleLabel(acc.role)}</td>
+                    <td>{formatDate(acc.created_at)}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="icon-btn--sm icon-btn--sm-success"
+                          aria-label={`Approve ${acc.full_name}`}
+                          title="Approve"
+                          onClick={() => {
+                            setApprovalTarget(acc);
+                            setApprovalRole('staff');
+                            setApprovalReason('');
+                            setError('');
+                          }}
+                        >
+                          <BiUserCheck />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn--sm icon-btn--sm-danger"
+                          aria-label={`Reject ${acc.full_name}`}
+                          title="Reject"
+                          onClick={() => {
+                            setApprovalTarget(acc);
+                            setApprovalRole('');
+                            setApprovalReason('');
+                            setError('');
+                          }}
+                        >
+                          <BiUserX />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {error && <div className="page-alert page-alert--danger">{error}</div>}
 
               <div className="modal-actions">
                 <button type="button" className="btn-ghost" onClick={close} disabled={saving}>
@@ -531,6 +714,108 @@ function Staff() {
             </button>
             <button type="button" className="btn-danger" onClick={handleDelete} disabled={saving}>
               {saving ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    {approvalTarget && approvalRole && (
+        <Modal open onClose={() => setApprovalTarget(null)} header={`Approve ${approvalTarget.full_name}`} showClose={false} size="sm" variant="alertdialog" blocked={saving}>
+          <p className="modal-body-text">
+            Approve <strong>{approvalTarget.full_name}</strong> and assign a role? The account
+            will be activated immediately.
+          </p>
+          <label className="form-field">
+            <span>Role</span>
+            <select value={approvalRole} onChange={(e) => setApprovalRole(e.target.value)} disabled={saving}>
+              {APPROVAL_ROLES.map((r) => (
+                <option key={r} value={r}>{getRoleLabel(r)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span>Reason *</span>
+            <textarea
+              rows={2}
+              value={approvalReason}
+              onChange={(e) => setApprovalReason(e.target.value)}
+              placeholder="e.g. Interviewed and cleared on Jul 12"
+              disabled={saving}
+            />
+          </label>
+          {error && <div className="page-alert page-alert--danger">{error}</div>}
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => setApprovalTarget(null)} disabled={saving}>
+              Cancel
+            </button>
+            <button type="button" className="btn-primary" onClick={handleApprove} disabled={saving || !approvalReason.trim()}>
+              {saving ? 'Approving...' : 'Approve & Activate'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {approvalTarget && !approvalRole && (
+        <Modal open onClose={() => setApprovalTarget(null)} header={`Reject ${approvalTarget.full_name}`} showClose={false} size="sm" variant="alertdialog" blocked={saving}>
+          <p className="modal-body-text">
+            Reject the account request for <strong>{approvalTarget.full_name}</strong>? The account
+            will be deactivated.
+          </p>
+          <label className="form-field">
+            <span>Reason *</span>
+            <textarea
+              rows={2}
+              value={approvalReason}
+              onChange={(e) => setApprovalReason(e.target.value)}
+              placeholder="e.g. Failed background check"
+              disabled={saving}
+            />
+          </label>
+          {error && <div className="page-alert page-alert--danger">{error}</div>}
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => setApprovalTarget(null)} disabled={saving}>
+              Cancel
+            </button>
+            <button type="button" className="btn-danger" onClick={handleReject} disabled={saving || !approvalReason.trim()}>
+              {saving ? 'Rejecting...' : 'Reject'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {statusTarget && (
+        <Modal open onClose={() => setStatusTarget(null)} header={`Manage ${statusTarget.name}'s Account`} showClose={false} size="sm" variant="alertdialog" blocked={saving}>
+          <label className="form-field">
+            <span>Account Status</span>
+            <select value={statusAction} onChange={(e) => setStatusAction(e.target.value)} disabled={saving}>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+              <option value="deactivated">Deactivated</option>
+            </select>
+          </label>
+          {statusAction !== 'active' && (
+            <label className="form-field">
+              <span>Reason *</span>
+              <textarea
+                rows={2}
+                value={statusReason}
+                onChange={(e) => setStatusReason(e.target.value)}
+                placeholder="e.g. Repeated late arrivals, resigned"
+                disabled={saving}
+              />
+            </label>
+          )}
+          {error && <div className="page-alert page-alert--danger">{error}</div>}
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => setStatusTarget(null)} disabled={saving}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={statusAction === 'active' ? 'btn-primary' : 'btn-danger'}
+              onClick={handleAccountStatus}
+              disabled={saving || (statusAction !== 'active' && !statusReason.trim())}
+            >
+              {saving ? 'Saving...' : titleCase(statusAction)}
             </button>
           </div>
         </Modal>

@@ -37,9 +37,17 @@ describe('ProtectedRoute', () => {
   });
 
   it('renders the protected content for authenticated users', () => {
-    useAuth.mockReturnValue({ user: { id: 'u1' }, loading: false });
+    useAuth.mockReturnValue({ user: { id: 'u1' }, profile: { status: 'active' }, loading: false });
     renderProtected();
     expect(screen.getByText('Protected Content')).toBeInTheDocument();
+    expect(screen.queryByText('Login Page')).not.toBeInTheDocument();
+  });
+
+  it('shows the account status screen for non-active accounts', () => {
+    useAuth.mockReturnValue({ user: { id: 'u1' }, profile: { status: 'pending' }, loading: false });
+    renderProtected();
+    expect(screen.getByText('Account pending approval')).toBeInTheDocument();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
     expect(screen.queryByText('Login Page')).not.toBeInTheDocument();
   });
 });
