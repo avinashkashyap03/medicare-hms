@@ -9,6 +9,7 @@ import '@/assets/styles/departments.css';
 import '@/assets/styles/billing.css';
 import '@/assets/styles/inventory.css';
 import '@/assets/styles/reports.css';
+import '@/assets/styles/profile.css';
 import '@/assets/styles/main.css';
 import '@/assets/styles/auth.css';
 import App from '@/App.jsx';

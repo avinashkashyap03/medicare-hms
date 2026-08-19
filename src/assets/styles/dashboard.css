@@ -95,6 +95,13 @@
   margin-bottom: var(--db-gutter);
 }
 
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--db-gutter);
+  margin-bottom: var(--db-gutter);
+}
+
 .grid-5 {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -990,6 +997,10 @@
 }
 
 @media (max-width: 640px) {
+  .grid-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .grid-4 {
     grid-template-columns: 1fr 1fr;
   }
@@ -1020,6 +1031,10 @@
 }
 
 @media (max-width: 480px) {
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+
   .grid-4 {
     grid-template-columns: 1fr;
   }

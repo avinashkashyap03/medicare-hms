@@ -10,6 +10,8 @@ import {
   BiSearch,
   BiShow,
   BiTrash,
+  BiUndo,
+  BiXCircle,
 } from 'react-icons/bi';
 import Spinner from '@/components/ui/Spinner.jsx';
 import { useAuth } from '@/context/AuthContext.jsx';
@@ -24,11 +26,14 @@ import {
   PAYMENT_METHODS,
   addInvoice,
   addPayment,
+  cancelInvoice,
   deleteInvoice,
   fetchInvoices,
   fetchPayments,
+  fetchRefunds,
   getBillingStats,
   getNextInvoiceNo,
+  reversePayment,
   updateInvoice,
 } from '@/services/billing.js';
 
@@ -85,7 +90,7 @@ function lineSubtotal(item) {
 }
 
 function Billing() {
-  const { user } = useAuth();
+  const { user, can, isAdmin } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [stats, setStats] = useState({ collected: 0, outstanding: 0, overdue: 0, pendingCount: 0, pendingAmount: 0, total: 0 });
   const [count, setCount] = useState(0);
@@ -100,10 +105,15 @@ function Billing() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [reverseTarget, setReverseTarget] = useState(null);
+  const [reverseReason, setReverseReason] = useState('');
   const [paymentTarget, setPaymentTarget] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ amount: '', method: 'cash', transaction_id: '' });
   const [viewTarget, setViewTarget] = useState(null);
   const [viewPayments, setViewPayments] = useState([]);
+  const [viewRefunds, setViewRefunds] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const aliveRef = useRef(true);
@@ -317,17 +327,6 @@ function Billing() {
     }
   };
 
-  const handleStatusChange = async (invoice, status) => {
-    if (!invoice || status === invoice.status) return;
-    try {
-      await updateInvoice(invoice.id, { status });
-      await load();
-    } catch (err) {
-      console.error('Failed to update invoice status:', err);
-      setError(err?.message || 'Failed to update invoice status.');
-    }
-  };
-
   const openPayment = (invoice) => {
     setPaymentTarget(invoice);
     const balance = Math.max(0, Number(invoice.total || 0) - Number(invoice.paid_amount || 0));
@@ -379,10 +378,80 @@ function Billing() {
   const openView = async (invoice) => {
     setViewTarget(invoice);
     setViewPayments([]);
+    setViewRefunds([]);
     try {
-      setViewPayments(await fetchPayments(invoice.id));
+      const [payments, refunds] = await Promise.all([
+        fetchPayments(invoice.id),
+        fetchRefunds(invoice.id),
+      ]);
+      setViewPayments(payments);
+      setViewRefunds(refunds);
     } catch (err) {
       console.error('Failed to load payments:', err);
+    }
+  };
+
+  const handleStatusChange = async (invoice, status) => {
+    if (!invoice || status === invoice.status) return;
+    // 'paid' and 'cancelled' are managed by the payment recompute trigger
+    // and admin_cancel_invoice respectively — never via a direct update.
+    if (status === 'paid' || status === 'cancelled') return;
+    try {
+      await updateInvoice(invoice.id, { status });
+      await load();
+    } catch (err) {
+      console.error('Failed to update invoice status:', err);
+      setError(err?.message || 'Failed to update invoice status.');
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    if (!cancelReason.trim()) {
+      setError('Enter a reason for cancelling this invoice.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await cancelInvoice(cancelTarget.id, cancelReason.trim());
+      setCancelTarget(null);
+      setCancelReason('');
+      await load();
+    } catch (err) {
+      console.error('Failed to cancel invoice:', err);
+      setError(err?.message || 'Failed to cancel invoice.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReverse = async () => {
+    if (!reverseTarget) return;
+    if (!reverseReason.trim()) {
+      setError('Enter a reason for reversing this payment.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await reversePayment({ payment_id: reverseTarget.id, reason: reverseReason.trim() });
+      setReverseTarget(null);
+      setReverseReason('');
+      if (viewTarget) {
+        const [payments, refunds] = await Promise.all([
+          fetchPayments(viewTarget.id),
+          fetchRefunds(viewTarget.id),
+        ]);
+        setViewPayments(payments);
+        setViewRefunds(refunds);
+      }
+      await load();
+    } catch (err) {
+      console.error('Failed to reverse payment:', err);
+      setError(err?.message || 'Failed to reverse payment.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -429,9 +498,11 @@ function Billing() {
           </h1>
           <p className="welcome-sub">{count} invoice records — shared across all staff.</p>
         </div>
-        <button type="button" className="btn-primary" onClick={openAdd}>
-          <BiPlus /> New Invoice
-        </button>
+        {can('billing', 'create') && (
+          <button type="button" className="btn-primary" onClick={openAdd}>
+            <BiPlus /> New Invoice
+          </button>
+        )}
       </section>
 
       <section className="inv-summary">
@@ -517,6 +588,14 @@ function Billing() {
                       0,
                       Number(inv.total || 0) - Number(inv.paid_amount || 0)
                     );
+                    const editable =
+                      (inv.status === 'pending' || inv.status === 'overdue') &&
+                      Number(inv.paid_amount || 0) === 0;
+                    const canCollect =
+                      can('billing', 'collect_payment') &&
+                      inv.status !== 'paid' &&
+                      inv.status !== 'cancelled' &&
+                      balance > 0;
                     return (
                       <tr key={inv.id}>
                         <td className="strong">{inv.invoice_no}</td>
@@ -534,16 +613,24 @@ function Billing() {
                         <td>{formatCurrency(inv.paid_amount)}</td>
                         <td className={balance > 0 ? 'inv-balance' : 'muted'}>{formatCurrency(balance)}</td>
                         <td>
-                          <select
-                            className={`status-select status-select--${String(inv.status).toLowerCase()}`}
-                            value={String(inv.status || 'pending')}
-                            onChange={(e) => handleStatusChange(inv, e.target.value)}
-                            aria-label={`Status for ${inv.invoice_no}`}
-                          >
-                            {INVOICE_STATUS_OPTIONS.map((s) => (
-                              <option key={s} value={s}>{titleCase(s)}</option>
-                            ))}
-                          </select>
+                          {editable && can('billing', 'update') ? (
+                            <select
+                              className={`status-select status-select--${String(inv.status).toLowerCase()}`}
+                              value={String(inv.status || 'pending')}
+                              onChange={(e) => handleStatusChange(inv, e.target.value)}
+                              aria-label={`Status for ${inv.invoice_no}`}
+                            >
+                              {INVOICE_STATUS_OPTIONS.filter(
+                                (s) => s !== 'paid' && s !== 'cancelled'
+                              ).map((s) => (
+                                <option key={s} value={s}>{titleCase(s)}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className={`status-badge ${String(inv.status || 'pending').toLowerCase()}`}>
+                              {titleCase(inv.status)}
+                            </span>
+                          )}
                         </td>
                         <td>
                           <div className="row-actions">
@@ -556,33 +643,53 @@ function Billing() {
                             >
                               <BiShow />
                             </button>
-                            <button
-                              type="button"
-                              className="icon-btn--sm"
-                              aria-label={`Record payment for ${inv.invoice_no}`}
-                              title="Record payment"
-                              onClick={() => openPayment(inv)}
-                            >
-                              <BiDollar />
-                            </button>
-                            <button
-                              type="button"
-                              className="icon-btn--sm"
-                              aria-label={`Edit ${inv.invoice_no}`}
-                              title="Edit invoice"
-                              onClick={() => openEdit(inv)}
-                            >
-                              <BiEdit />
-                            </button>
-                            <button
-                              type="button"
-                              className="icon-btn--sm icon-btn--sm-danger"
-                              aria-label={`Delete ${inv.invoice_no}`}
-                              title="Delete invoice"
-                              onClick={() => setDeleteTarget(inv)}
-                            >
-                              <BiTrash />
-                            </button>
+                            {canCollect && (
+                              <button
+                                type="button"
+                                className="icon-btn--sm"
+                                aria-label={`Record payment for ${inv.invoice_no}`}
+                                title="Record payment"
+                                onClick={() => openPayment(inv)}
+                              >
+                                <BiDollar />
+                              </button>
+                            )}
+                            {editable && can('billing', 'update') && (
+                              <button
+                                type="button"
+                                className="icon-btn--sm"
+                                aria-label={`Edit ${inv.invoice_no}`}
+                                title="Edit invoice"
+                                onClick={() => openEdit(inv)}
+                              >
+                                <BiEdit />
+                              </button>
+                            )}
+                            {isAdmin && editable && (
+                              <button
+                                type="button"
+                                className="icon-btn--sm icon-btn--sm-danger"
+                                aria-label={`Cancel ${inv.invoice_no}`}
+                                title="Cancel invoice"
+                                onClick={() => {
+                                  setCancelTarget(inv);
+                                  setCancelReason('');
+                                }}
+                              >
+                                <BiXCircle />
+                              </button>
+                            )}
+                            {can('billing', 'delete') && editable && (
+                              <button
+                                type="button"
+                                className="icon-btn--sm icon-btn--sm-danger"
+                                aria-label={`Delete ${inv.invoice_no}`}
+                                title="Delete invoice"
+                                onClick={() => setDeleteTarget(inv)}
+                              >
+                                <BiTrash />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -944,25 +1051,135 @@ function Billing() {
                 ) : (
                   <table className="data-table">
                     <thead>
-                      <tr><th>Date</th><th>Method</th><th>Transaction</th><th>Amount</th></tr>
+                      <tr>
+                        <th>Date</th>
+                        <th>Method</th>
+                        <th>Transaction</th>
+                        <th>Amount</th>
+                        {isAdmin && <th>Actions</th>}
+                      </tr>
                     </thead>
                     <tbody>
-                      {viewPayments.map((pay) => (
-                        <tr key={pay.id}>
-                          <td>{formatDate(pay.paid_at)} {formatTime(pay.paid_at)}</td>
-                          <td>{titleCase(pay.method)}</td>
-                          <td>{pay.transaction_id || '—'}</td>
-                          <td className="strong">{formatCurrency(pay.amount)}</td>
-                        </tr>
-                      ))}
+                      {viewPayments.map((pay) => {
+                        const refunded = viewRefunds
+                          .filter((r) => r.payment_id === pay.id)
+                          .reduce((s, r) => s + Number(r.amount || 0), 0);
+                        const remaining = Math.max(0, Number(pay.amount || 0) - refunded);
+                        return (
+                          <tr key={pay.id}>
+                            <td>{formatDate(pay.paid_at)} {formatTime(pay.paid_at)}</td>
+                            <td>{titleCase(pay.method)}</td>
+                            <td>{pay.transaction_id || '—'}</td>
+                            <td className="strong">{formatCurrency(pay.amount)}</td>
+                            {isAdmin && (
+                              <td>
+                                {remaining > 0 ? (
+                                  <button
+                                    type="button"
+                                    className="icon-btn--sm icon-btn--sm-danger"
+                                    aria-label={`Reverse payment ${pay.transaction_id || ''}`}
+                                    title="Reverse payment"
+                                    onClick={() => {
+                                      setReverseTarget(pay);
+                                      setReverseReason('');
+                                    }}
+                                  >
+                                    <BiUndo />
+                                  </button>
+                                ) : (
+                                  <span className="muted">reversed</span>
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
+                )}
+
+                {viewRefunds.length > 0 && (
+                  <div className="inv-refunds">
+                    <p className="invoice-bill-label">Refunds &amp; Reversals</p>
+                    <table className="data-table">
+                      <thead>
+                        <tr><th>Date</th><th>Amount</th><th>Reason</th></tr>
+                      </thead>
+                      <tbody>
+                        {viewRefunds.map((r) => (
+                          <tr key={r.id}>
+                            <td>{formatDate(r.created_at)} {formatTime(r.created_at)}</td>
+                            <td className="strong inv-refund-amount">-{formatCurrency(r.amount)}</td>
+                            <td className="muted">{r.reason}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
 
               <p className="invoice-foot">
                 Thank you for choosing MediCare HMS. Please make payment by the due date.
               </p>
+          </div>
+        </Modal>
+      )}
+
+      {cancelTarget && (
+        <Modal open onClose={() => setCancelTarget(null)} header={`Cancel ${cancelTarget.invoice_no}`} showClose={false} size="sm" variant="alertdialog" blocked={saving}>
+          <p className="modal-body-text">
+            Cancel invoice <strong>{cancelTarget.invoice_no}</strong> for{' '}
+            <strong>{cancelTarget.patients?.name}</strong>? This marks the invoice as cancelled
+            and cannot be undone through the UI.
+          </p>
+          <label className="form-field">
+            <span>Reason *</span>
+            <textarea
+              rows={2}
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g. Patient no-show, duplicate invoice"
+              disabled={saving}
+            />
+          </label>
+          {error && <div className="page-alert page-alert--danger">{error}</div>}
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => setCancelTarget(null)} disabled={saving}>
+              Close
+            </button>
+            <button type="button" className="btn-danger" onClick={handleCancel} disabled={saving}>
+              {saving ? 'Cancelling...' : 'Cancel Invoice'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {reverseTarget && (
+        <Modal open onClose={() => setReverseTarget(null)} header="Reverse Payment" showClose={false} size="sm" variant="alertdialog" blocked={saving}>
+          <p className="modal-body-text">
+            Reverse payment of <strong>{formatCurrency(reverseTarget.amount)}</strong> received on{' '}
+            <strong>{formatDate(reverseTarget.paid_at)}</strong>? The invoice balance will be
+            recomputed automatically.
+          </p>
+          <label className="form-field">
+            <span>Reason *</span>
+            <textarea
+              rows={2}
+              value={reverseReason}
+              onChange={(e) => setReverseReason(e.target.value)}
+              placeholder="e.g. Payment error, refund issued"
+              disabled={saving}
+            />
+          </label>
+          {error && <div className="page-alert page-alert--danger">{error}</div>}
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => setReverseTarget(null)} disabled={saving}>
+              Close
+            </button>
+            <button type="button" className="btn-danger" onClick={handleReverse} disabled={saving}>
+              {saving ? 'Reversing...' : 'Reverse Payment'}
+            </button>
           </div>
         </Modal>
       )}

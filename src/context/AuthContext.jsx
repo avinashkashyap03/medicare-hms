@@ -1,27 +1,61 @@
 /* eslint-disable react-refresh/only-export-components */
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import supabase from '@/services/supabase.js';
+import { can as canByRole } from '@/utils/permissions.js';
 
 const AuthContext = createContext(null);
 
+async function fetchProfile(authUser) {
+  if (!authUser) return null;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, role, status')
+    .eq('id', authUser.id)
+    .maybeSingle();
+  if (error) {
+    console.warn('Failed to load profile:', error);
+    return null;
+  }
+  return data ?? null;
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
+    let active = true;
+
+    supabase.auth.getSession().then(async ({ data }) => {
+      const sessionUser = data.session?.user ?? null;
+      if (!active) return;
+      setUser(sessionUser);
+      const prof = await fetchProfile(sessionUser);
+      if (!active) return;
+      setProfile(prof);
       setLoading(false);
     });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      const sessionUser = session?.user ?? null;
+      setUser(sessionUser);
+      void fetchProfile(sessionUser).then((prof) => {
+        if (active) setProfile(prof);
+      });
     });
 
-    return () => subscription?.subscription?.unsubscribe();
+    return () => {
+      active = false;
+      subscription?.subscription?.unsubscribe();
+    };
   }, []);
+
+  const refreshProfile = useCallback(async () => {
+    const prof = await fetchProfile(user);
+    setProfile(prof);
+  }, [user]);
 
   const signIn = async (email, password, rememberMe = true) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -63,9 +97,34 @@ export function AuthProvider({ children }) {
     if (error) throw error;
   };
 
+  const role = profile?.role ?? null;
+  const status = profile?.status ?? null;
+  const isAdmin = role === 'admin';
+  const isActive = status === 'active';
+  const can = useCallback(
+    (module, action) => canByRole(role, module, action),
+    [role],
+  );
+
   return (
     <AuthContext.Provider
-      value={{ user, loading, signIn, signUp, resetPassword, exchangeRecoveryCode, updatePassword, signOut }}
+      value={{
+        user,
+        profile,
+        role,
+        status,
+        isAdmin,
+        isActive,
+        can,
+        loading,
+        refreshProfile,
+        signIn,
+        signUp,
+        resetPassword,
+        exchangeRecoveryCode,
+        updatePassword,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>

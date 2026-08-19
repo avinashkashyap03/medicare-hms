@@ -140,6 +140,17 @@ export async function updateInvoice(id, payload) {
   return data;
 }
 
+// The ONLY sanctioned way to mark an invoice cancelled (RLS forbids
+// writing status='cancelled' via a direct update). Admin-only RPC.
+export async function cancelInvoice(id, reason) {
+  const { error } = await supabase.rpc('admin_cancel_invoice', {
+    p_invoice_id: id,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  notifyPendingCountChanged();
+}
+
 export async function deleteInvoice(id) {
   const { error } = await supabase.from('invoices').delete().eq('id', id);
   if (error) throw error;
@@ -175,6 +186,13 @@ export async function getBillingStats() {
   return data;
 }
 
+// Today's collections (payments minus refunds) — admin + receptionist.
+export async function getTodayCollections() {
+  const { data, error } = await supabase.rpc('get_today_collections');
+  if (error) throw error;
+  return data;
+}
+
 // ---------- Payments ----------
 
 export async function fetchPayments(invoiceId) {
@@ -188,7 +206,21 @@ export async function fetchPayments(invoiceId) {
   return data ?? [];
 }
 
-// Record a payment against an invoice and refresh its paid_amount / status
+// Refunds against an invoice (admin correction history).
+export async function fetchRefunds(invoiceId) {
+  const { data, error } = await supabase
+    .from('refunds')
+    .select('*')
+    .eq('invoice_id', invoiceId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Record a payment. The invoice's paid_amount / status are recomputed by
+// the AFTER INSERT trigger (migration 013), so the client must NOT update
+// the invoice itself anymore.
 export async function addPayment({ invoice_id, amount, method = 'cash', transaction_id = '' }, user) {
   const value = Number(amount);
   if (!Number.isFinite(value) || value <= 0) {
@@ -197,14 +229,15 @@ export async function addPayment({ invoice_id, amount, method = 'cash', transact
 
   const { data: inv, error: invError } = await supabase
     .from('invoices')
-    .select('total, paid_amount, status, due_date')
+    .select('total, paid_amount, status')
     .eq('id', invoice_id)
     .single();
   if (invError) throw invError;
 
-  const total = Number(inv?.total || 0);
-  const alreadyPaid = Number(inv?.paid_amount || 0);
-  const balance = Math.max(0, total - alreadyPaid);
+  if (inv?.status === 'paid' || inv?.status === 'cancelled') {
+    throw new Error('This invoice cannot accept payments.');
+  }
+  const balance = Math.max(0, Number(inv?.total || 0) - Number(inv?.paid_amount || 0));
   if (value > balance) {
     throw new Error('Payment amount exceeds the outstanding balance.');
   }
@@ -225,29 +258,28 @@ export async function addPayment({ invoice_id, amount, method = 'cash', transact
     .single();
   if (error) throw error;
 
-  const { data: pays } = await supabase
-    .from('payments')
-    .select('amount')
-    .eq('invoice_id', invoice_id);
-  const paid = (pays ?? []).reduce((s, p) => s + Number(p.amount || 0), 0);
-
-  const dueDatePast = inv?.due_date && new Date(`${String(inv.due_date).slice(0, 10)}T00:00:00`) < new Date();
-  const nextStatus =
-    inv?.status === 'cancelled'
-      ? 'cancelled'
-      : paid >= total
-        ? 'paid'
-        : dueDatePast
-          ? 'overdue'
-          : 'pending';
-
-  const { error: updateErr } = await supabase
-    .from('invoices')
-    .update({ paid_amount: paid, status: nextStatus })
-    .eq('id', invoice_id);
-  if (updateErr) throw updateErr;
-
   notifyPendingCountChanged();
 
   return data;
+}
+
+// Admin-only corrections (record_refund / reverse_payment RPCs). These
+// write a `refunds` row and recompute the invoice server-side.
+export async function recordRefund({ payment_id, amount, reason }) {
+  const { error } = await supabase.rpc('record_refund', {
+    p_payment_id: payment_id,
+    p_amount: amount,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  notifyPendingCountChanged();
+}
+
+export async function reversePayment({ payment_id, reason }) {
+  const { error } = await supabase.rpc('reverse_payment', {
+    p_payment_id: payment_id,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  notifyPendingCountChanged();
 }

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { validatePassword, getFriendlyAuthError, getUserDisplay } from '@/utils/auth.js';
+import {
+  validatePassword,
+  getFriendlyAuthError,
+  getUserDisplay,
+  isAdminRole,
+  getRoleLabel,
+  getStatusLabel,
+} from '@/utils/auth.js';
 
 describe('validatePassword', () => {
   it('accepts a strong password', () => {
@@ -69,5 +76,51 @@ describe('getUserDisplay', () => {
     expect(displayName).toBe('User');
     expect(firstName).toBe('User');
     expect(initials).toBe('U');
+  });
+});
+
+describe('isAdminRole', () => {
+  it('returns true only for the admin role', () => {
+    expect(isAdminRole('admin')).toBe(true);
+    expect(isAdminRole('user')).toBe(false);
+    expect(isAdminRole('staff')).toBe(false);
+    expect(isAdminRole('doctor')).toBe(false);
+    expect(isAdminRole(null)).toBe(false);
+    expect(isAdminRole(undefined)).toBe(false);
+  });
+});
+
+describe('getRoleLabel', () => {
+  it('labels the admin role as Administrator', () => {
+    expect(getRoleLabel('admin')).toBe('Administrator');
+  });
+
+  it('labels known roles with their display name', () => {
+    expect(getRoleLabel('receptionist')).toBe('Receptionist');
+    expect(getRoleLabel('staff')).toBe('Staff');
+    expect(getRoleLabel('doctor')).toBe('Doctor');
+    expect(getRoleLabel('nurse')).toBe('Nurse');
+    expect(getRoleLabel('pharmacist')).toBe('Pharmacist');
+  });
+
+  it('falls back to User for unknown or missing roles', () => {
+    expect(getRoleLabel('user')).toBe('User');
+    expect(getRoleLabel('superadmin')).toBe('User');
+    expect(getRoleLabel(null)).toBe('User');
+    expect(getRoleLabel(undefined)).toBe('User');
+  });
+});
+
+describe('getStatusLabel', () => {
+  it('labels every account status', () => {
+    expect(getStatusLabel('pending')).toBe('Pending Approval');
+    expect(getStatusLabel('active')).toBe('Active');
+    expect(getStatusLabel('suspended')).toBe('Suspended');
+    expect(getStatusLabel('deactivated')).toBe('Deactivated');
+  });
+
+  it('falls back to Unknown for unrecognized statuses', () => {
+    expect(getStatusLabel('weird')).toBe('Unknown');
+    expect(getStatusLabel(null)).toBe('Unknown');
   });
 });

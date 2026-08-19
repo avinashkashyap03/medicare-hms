@@ -45,7 +45,7 @@ function bloodClass(blood) {
 }
 
 function Patients() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const [patients, setPatients] = useState([]);
   const [count, setCount] = useState(0);
   const [search, setSearch] = useState('');
@@ -204,9 +204,11 @@ function Patients() {
           </h1>
           <p className="welcome-sub">{count} patient records — shared across all staff.</p>
         </div>
-        <button type="button" className="btn-primary" onClick={openAdd}>
-          <BiPlus /> New Patient
-        </button>
+        {can('patients', 'create') && (
+          <button type="button" className="btn-primary" onClick={openAdd}>
+            <BiPlus /> New Patient
+          </button>
+        )}
       </section>
 
       {error && <div className="page-alert page-alert--danger">{error}</div>}
@@ -285,22 +287,26 @@ function Patients() {
                       </td>
                       <td>
                         <div className="row-actions">
-                          <button
-                            type="button"
-                            className="icon-btn--sm"
-                            aria-label={`Edit ${p.name}`}
-                            onClick={() => openEdit(p)}
-                          >
-                            <BiEdit />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn--sm icon-btn--sm-danger"
-                            aria-label={`Delete ${p.name}`}
-                            onClick={() => setDeleteTarget(p)}
-                          >
-                            <BiTrash />
-                          </button>
+                          {can('patients', 'update') && (
+                            <button
+                              type="button"
+                              className="icon-btn--sm"
+                              aria-label={`Edit ${p.name}`}
+                              onClick={() => openEdit(p)}
+                            >
+                              <BiEdit />
+                            </button>
+                          )}
+                          {can('patients', 'delete') && (
+                            <button
+                              type="button"
+                              className="icon-btn--sm icon-btn--sm-danger"
+                              aria-label={`Delete ${p.name}`}
+                              onClick={() => setDeleteTarget(p)}
+                            >
+                              <BiTrash />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

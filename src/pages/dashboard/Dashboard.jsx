@@ -36,13 +36,16 @@ function formatCurrency(value) {
 }
 
 function Dashboard() {
-  const { user } = useAuth();
+  const { user, isAdmin, can } = useAuth();
   const { firstName } = getUserDisplay(user);
   const [patientCount, setPatientCount] = useState(null);
   const [doctorCount, setDoctorCount] = useState(null);
   const [appointmentCount, setAppointmentCount] = useState(null);
   const [revenue, setRevenue] = useState(null);
   const [pharmacyCount, setPharmacyCount] = useState(null);
+
+  const canBilling = can('billing', 'view');
+  const canPharmacy = can('pharmacy', 'view');
 
   useEffect(() => {
     let cancelled = false;
@@ -70,28 +73,38 @@ function Dashboard() {
         console.error('Failed to load appointment count:', err);
         if (!cancelled) setAppointmentCount(null);
       });
-    getBillingStats()
-      .then((stats) => {
-        if (!cancelled) setRevenue(stats?.collected ?? 0);
-      })
-      .catch((err) => {
-        console.error('Failed to load revenue:', err);
-        if (!cancelled) setRevenue(null);
-      });
-    getPharmacyCount()
-      .then((count) => {
-        if (!cancelled) setPharmacyCount(count);
-      })
-      .catch((err) => {
-        console.error('Failed to load pharmacy count:', err);
-        if (!cancelled) setPharmacyCount(null);
-      });
+    if (canBilling) {
+      getBillingStats()
+        .then((stats) => {
+          if (!cancelled) setRevenue(stats?.collected ?? 0);
+        })
+        .catch((err) => {
+          console.error('Failed to load revenue:', err);
+          if (!cancelled) setRevenue(null);
+        });
+    }
+    if (canPharmacy) {
+      getPharmacyCount()
+        .then((count) => {
+          if (!cancelled) setPharmacyCount(count);
+        })
+        .catch((err) => {
+          console.error('Failed to load pharmacy count:', err);
+          if (!cancelled) setPharmacyCount(null);
+        });
+    }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canBilling, canPharmacy]);
 
-  const stats = dashboardStats.map((stat) => {
+  const visibleStats = dashboardStats.filter((stat) => {
+    if (stat.id === 'revenue') return canBilling;
+    if (stat.id === 'pharmacy') return canPharmacy;
+    return true;
+  });
+
+  const stats = visibleStats.map((stat) => {
     if (stat.id === 'patients') {
       return { ...stat, value: patientCount === null ? '—' : patientCount.toLocaleString() };
     }
@@ -106,7 +119,7 @@ function Dashboard() {
         ...stat,
         value: revenue === null ? '—' : formatCurrency(revenue),
         delta: 0,
-        to: '/billing',
+        to: canBilling ? '/billing' : null,
       };
     }
     if (stat.id === 'pharmacy') {
@@ -114,7 +127,7 @@ function Dashboard() {
         ...stat,
         value: pharmacyCount === null ? '—' : pharmacyCount.toLocaleString(),
         delta: 0,
-        to: '/pharmacy',
+        to: canPharmacy ? '/pharmacy' : null,
       };
     }
     return stat;
@@ -133,7 +146,7 @@ function Dashboard() {
         </Link>
       </section>
 
-      <section className="stats-grid grid-5">
+      <section className={`stats-grid grid-${stats.length}`}>
         {stats.map((stat) => (
           <StatCard key={stat.id} stat={stat} />
         ))}
@@ -152,9 +165,11 @@ function Dashboard() {
         <div className="dash-span-2">
           <AppointmentsTable />
         </div>
-        <div>
-          <BedOccupancy />
-        </div>
+        {isAdmin && (
+          <div>
+            <BedOccupancy />
+          </div>
+        )}
       </section>
 
       <section className="dash-grid">

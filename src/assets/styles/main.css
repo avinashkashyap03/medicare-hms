@@ -32,3 +32,65 @@ body {
   min-height: 0;
   padding: 40px 0;
 }
+
+.account-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.account-status-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.account-status-pill.pending {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.12);
+}
+
+.account-status-pill.active {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.12);
+}
+
+.account-status-pill.suspended {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.12);
+}
+
+.account-status-pill.deactivated {
+  color: var(--db-danger, #ef4444);
+  background: var(--db-danger-soft, rgba(239, 68, 68, 0.12));
+}
+
+.approvals-title {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+}
+
+.approvals-title small {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--db-muted);
+}
+
+.theme-dark .account-status-pill.pending,
+.theme-dark .account-status-pill.suspended {
+  color: #fbbf24;
+}
+
+.theme-dark .account-status-pill.active {
+  color: #34d399;
+}

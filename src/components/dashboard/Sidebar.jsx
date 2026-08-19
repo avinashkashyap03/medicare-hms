@@ -22,30 +22,32 @@ const navGroups = [
     label: 'Main',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: BiBarChartAlt },
-      { to: '/patients', label: 'Patients', icon: BiUser },
-      { to: '/doctors', label: 'Doctors', icon: BiFirstAid },
-      { to: '/appointments', label: 'Appointments', icon: BiCalendarCheck },
-      { to: '/departments', label: 'Departments', icon: BiClinic },
+      { to: '/patients', label: 'Patients', icon: BiUser, module: 'patients' },
+      { to: '/doctors', label: 'Doctors', icon: BiFirstAid, module: 'doctors' },
+      { to: '/appointments', label: 'Appointments', icon: BiCalendarCheck, module: 'appointments' },
     ],
   },
   {
     label: 'Management',
     items: [
-      { to: '/billing', label: 'Billing & Invoice', icon: BiDollarCircle },
-      { to: '/inventory', label: 'Inventory', icon: BiBox },
-      { to: '/pharmacy', label: 'Pharmacy', icon: BiSolidCapsule },
-      { to: '/staff', label: 'Staff', icon: BiUserCircle },
-      { to: '/reports', label: 'Reports', icon: BiBarChart },
+      { to: '/departments', label: 'Departments', icon: BiClinic, module: 'departments' },
+      { to: '/billing', label: 'Billing & Invoice', icon: BiDollarCircle, module: 'billing' },
+      { to: '/inventory', label: 'Inventory', icon: BiBox, module: 'inventory' },
+      { to: '/pharmacy', label: 'Pharmacy', icon: BiSolidCapsule, module: 'pharmacy' },
+      { to: '/staff', label: 'Staff', icon: BiUserCircle, module: 'staff' },
+      { to: '/reports', label: 'Reports', icon: BiBarChart, module: 'reports' },
     ],
   },
 ];
 
 function Sidebar({ open, onClose }) {
-  const { signOut } = useAuth();
+  const { signOut, can } = useAuth();
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
+  const canViewBilling = can('billing', 'view');
 
   useEffect(() => {
+    if (!canViewBilling) return undefined;
     let cancelled = false;
     const refresh = () => {
       getPendingInvoiceCount()
@@ -63,7 +65,7 @@ function Sidebar({ open, onClose }) {
       cancelled = true;
       unsubscribe();
     };
-  }, []);
+  }, [canViewBilling]);
 
   useEffect(() => {
     if (!open) return;
@@ -79,6 +81,13 @@ function Sidebar({ open, onClose }) {
     navigate('/');
   };
 
+  const visibleGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.module || can(item.module, 'view')),
+    }))
+    .filter((group) => group.items.length > 0);
+
   return (
     <aside className={`sidebar ${open ? 'open' : ''}`}>
       <NavLink to="/dashboard" className="sidebar-brand">
@@ -91,7 +100,7 @@ function Sidebar({ open, onClose }) {
       </NavLink>
 
       <nav className="sidebar-nav">
-        {navGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label}>
             <p className="sidebar-label">{group.label}</p>
             {group.items.map((item) => {
