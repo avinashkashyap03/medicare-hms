@@ -41,6 +41,7 @@
   flex-direction: column;
   background: var(--auth-card);
   padding: 32px 48px;
+  overflow-y: auto;
 }
 
 .auth-brand {
@@ -75,13 +76,13 @@
 }
 
 .auth-form {
-  flex: 1;
+  margin: auto 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   width: 100%;
   max-width: 400px;
-  margin: 0 auto;
+  margin-left: auto;
+  margin-right: auto;
   padding: 16px 0;
 }
 
@@ -128,7 +129,20 @@
 .auth-form-body {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+
+/* Two-column row for compact forms (collapses on small screens). */
+.auth-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+@media (max-width: 560px) {
+  .auth-grid-2 {
+    grid-template-columns: 1fr;
+  }
 }
 
 .auth-field label {
@@ -156,8 +170,8 @@
 .auth-input {
   width: 100%;
   box-sizing: border-box;
-  height: 50px;
-  padding: 0 46px;
+  height: 44px;
+  padding: 0 16px 0 42px;
   border-radius: var(--auth-radius);
   border: 1px solid var(--auth-border);
   background: var(--auth-card);
@@ -165,6 +179,11 @@
   font-size: 0.95rem;
   box-shadow: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Extra right padding only when a toggle button sits inside the field. */
+.auth-input--toggled {
+  padding-right: 48px;
 }
 
 .auth-input::placeholder {
@@ -249,8 +268,8 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 50px;
-  margin-top: 6px;
+  height: 46px;
+  margin-top: 4px;
   border: none;
   border-radius: var(--auth-radius);
   background: linear-gradient(135deg, var(--auth-primary), var(--auth-primary-dark));
@@ -278,7 +297,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  margin: 18px 0;
+  margin: 12px 0;
   color: #94a3b8;
   font-size: 0.85rem;
 }
@@ -535,5 +554,35 @@
 
   .auth-form {
     max-width: 420px;
+  }
+}
+
+/* Compact mode for short viewports — keeps the form fully visible without scrolling. */
+@media (max-height: 820px) {
+  .auth-panel {
+    padding: 20px 48px;
+    overflow-y: auto;
+  }
+
+  .auth-form {
+    padding: 8px 0;
+  }
+
+  .auth-heading h1 {
+    font-size: 1.6rem;
+    margin-bottom: 6px;
+  }
+
+  .auth-heading p {
+    margin-bottom: 16px;
+  }
+
+  .auth-field label {
+    font-size: 0.85rem;
+    margin-bottom: 5px;
+  }
+
+  .auth-divider {
+    display: none;
   }
 }

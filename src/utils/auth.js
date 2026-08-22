@@ -17,6 +17,16 @@ export function getRoleLabel(role) {
   return ROLE_LABELS[role] ?? 'User';
 }
 
+// Roles an admin can assign from the Staff page (matches user_role enum).
+export const ASSIGNABLE_ROLES = [
+  'staff',
+  'receptionist',
+  'doctor',
+  'nurse',
+  'pharmacist',
+  'admin',
+];
+
 const STATUS_LABELS = {
   pending: 'Pending Approval',
   active: 'Active',

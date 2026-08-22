@@ -205,13 +205,15 @@ grant execute on function public.admin_set_user_role(text, public.user_role, tex
 -- 3) admin_list_pending_profiles()
 --    Admin-only: pending accounts + auth email for the approval UI.
 -- ------------------------------------------------------------
-create or replace function public.admin_list_pending_profiles()
+drop function if exists public.admin_list_pending_profiles();
+
+create function public.admin_list_pending_profiles()
 returns table (
   id uuid,
   full_name text,
   email text,
-  role public.user_role,
-  status public.account_status,
+  role text,
+  status text,
   created_at timestamptz
 )
 language plpgsql
@@ -219,19 +221,29 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- Qualify columns: RETURNS TABLE exposes id/role/status as OUT vars.
   if not exists (
     select 1
-    from public.profiles
-    where id = auth.uid() and role = 'admin' and status = 'active'
+    from public.profiles caller
+    where caller.id = auth.uid()
+      and caller.role = 'admin'::public.user_role
+      and caller.status = 'active'::public.account_status
   ) then
-    raise insufficient_privilege;
+    raise exception 'Only an active administrator can list pending profiles'
+      using errcode = '42501';
   end if;
 
   return query
-    select p.id, p.full_name, u.email, p.role, p.status, p.created_at
+    select
+      p.id,
+      p.full_name,
+      u.email::text,
+      p.role::text,
+      p.status::text,
+      p.created_at
     from public.profiles p
     join auth.users u on u.id = p.id
-    where p.status = 'pending'
+    where p.status = 'pending'::public.account_status
     order by p.created_at desc;
 end;
 $$;

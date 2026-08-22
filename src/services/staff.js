@@ -90,6 +90,30 @@ export async function deleteStaff(id) {
   if (error) throw error;
 }
 
+// Permanent removal: deletes every staff row linked to a login account
+// (staff.user_id === profiles.id). Works from both tabs — the Staff tab
+// supplies member.user_id and the All Profiles tab supplies acc.id,
+// which are the same value.
+export async function removeStaffByUser(userId) {
+  const { data, error } = await supabase
+    .from('staff')
+    .delete()
+    .eq('user_id', userId)
+    .select('id');
+
+  if (error) throw toFriendlyStaffError(error);
+
+  // Supabase/RLS quirk: a blocked DELETE returns success with zero rows.
+  // Surface that as a real error instead of silently doing nothing.
+  if (!data || data.length === 0) {
+    throw new Error(
+      'Staff record could not be deleted (permission denied or not found). Run the latest has_permission() migration.'
+    );
+  }
+
+  return data;
+}
+
 // Staff summary — totals and counts by status + designations map.
 // Aggregated inside PostgreSQL (get_staff_stats RPC) instead of
 // transferring every row into JavaScript.
@@ -110,6 +134,15 @@ export async function fetchPendingProfiles() {
   return data ?? [];
 }
 
+// Every account (all profiles) with their auth email — admin only.
+// Same SECURITY DEFINER RPC pattern as fetchPendingProfiles, so non-admins
+// get a 42501 from the database even though the UI never shows this tab.
+export async function fetchAllProfiles() {
+  const { data, error } = await supabase.rpc('admin_list_all_profiles');
+  if (error) throw error;
+  return data ?? [];
+}
+
 // Atomic approval via the secure RPC: sets role + status='active' in one
 // database update. The client only supplies the target's email; the
 // function resolves the profile, validates the caller, and writes the
@@ -121,6 +154,28 @@ export async function approveStaff(email, role, reason) {
     reason,
   });
   if (error) throw error;
+}
+
+export async function setUserRole(profileId, role, reason) {
+  const { error } = await supabase.rpc('admin_set_profile_role', {
+    p_target: profileId,
+    new_role: role,
+    p_reason: reason,
+  });
+  if (error) throw error;
+}
+
+// Permanent removal via the secure RPC: deletes all staff rows for the
+// account AND deactivates the login in one server-side transaction.
+// SECURITY DEFINER, so it works even where direct RLS deletes silently
+// delete zero rows. Returns the number of staff records removed.
+export async function adminRemoveStaff(userId, reason) {
+  const { data, error } = await supabase.rpc('admin_remove_staff', {
+    p_target: userId,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  return data ?? 0;
 }
 
 // Suspend / deactivate / reactivate an account (RPC).

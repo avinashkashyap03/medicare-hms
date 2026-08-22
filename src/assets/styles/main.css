@@ -86,6 +86,41 @@ body {
   color: var(--db-muted);
 }
 
+.approvals-panel {
+  border-color: color-mix(in srgb, #d97706 32%, var(--db-border));
+}
+
+.approvals-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.approvals-head-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.14);
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--db-primary);
+  background: var(--db-primary-soft);
+}
+
 .theme-dark .account-status-pill.pending,
 .theme-dark .account-status-pill.suspended {
   color: #fbbf24;
@@ -93,4 +128,38 @@ body {
 
 .theme-dark .account-status-pill.active {
   color: #34d399;
+}
+
+/* ---------- Staff view tabs ---------- */
+.staff-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 4px;
+  border-radius: var(--db-radius-sm);
+  background: var(--db-bg);
+  border: 1px solid var(--db-border);
+}
+
+.staff-tab {
+  border: none;
+  background: transparent;
+  color: var(--db-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.staff-tab:hover {
+  color: var(--db-text);
+}
+
+.staff-tab.active {
+  color: var(--db-primary);
+  background: var(--db-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
