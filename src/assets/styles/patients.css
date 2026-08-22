@@ -142,6 +142,11 @@
   background: var(--db-danger-soft) !important;
 }
 
+.icon-btn--sm-success:hover {
+  color: #059669 !important;
+  background: rgba(5, 150, 105, 0.12) !important;
+}
+
 /* ---------- Blood chip ---------- */
 .blood-chip {
   display: inline-flex;

@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   BiArrowFromRight,
+  BiBriefcase,
   BiEnvelope,
   BiLockAlt,
+  BiPhone,
   BiUser,
 } from 'react-icons/bi';
 import AuthInput, { PasswordInput } from '@/components/auth/AuthInput.jsx';
@@ -15,6 +17,8 @@ import { usePasswordForm } from '@/hooks/usePasswordForm.js';
 function SignUp() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [designation, setDesignation] = useState('');
   const { password, setPassword, confirmPassword, setConfirmPassword, validate } =
     usePasswordForm();
   const [agreeTerms, setAgreeTerms] = useState(false);
@@ -37,7 +41,9 @@ function SignUp() {
       return;
     }
 
-    const { ok, data: needsConfirmation } = await run(() => signUp(email, password, name));
+    const { ok, data: needsConfirmation } = await run(() =>
+      signUp(email, password, name, phone, designation)
+    );
     if (ok) {
       if (needsConfirmation) {
         setCheckEmail(true);
@@ -69,51 +75,82 @@ function SignUp() {
       </div>
 
       <form className="auth-form-body" onSubmit={handleSubmit}>
-        <AuthInput
-          id="signUpName"
-          name="fullName"
-          label="Full name"
-          type="text"
-          placeholder="Dr. Riya Sharma"
-          autoComplete="name"
-          icon={BiUser}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+        <div className="auth-grid-2">
+          <AuthInput
+            id="signUpName"
+            name="fullName"
+            label="Full name"
+            type="text"
+            placeholder="Riya Sharma"
+            autoComplete="name"
+            icon={BiUser}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
 
-        <AuthInput
-          id="signUpEmail"
-          name="email"
-          label="Email address"
-          type="email"
-          placeholder="name@hospital.com"
-          autoComplete="email"
-          icon={BiEnvelope}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+          <AuthInput
+            id="signUpEmail"
+            name="email"
+            label="Email address"
+            type="email"
+            placeholder="you@hospital.com"
+            autoComplete="email"
+            icon={BiEnvelope}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
 
-        <PasswordInput
-          id="signUpPassword"
-          name="password"
-          label="Password"
-          placeholder="Create a password"
-          autoComplete="new-password"
-          icon={BiLockAlt}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div className="auth-grid-2">
+          <AuthInput
+            id="signUpPhone"
+            name="phone"
+            label="Phone number"
+            type="tel"
+            placeholder="+91 98765 43210"
+            autoComplete="tel"
+            icon={BiPhone}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
 
-        <PasswordInput
-          id="signUpConfirm"
-          name="confirmPassword"
-          label="Confirm password"
-          placeholder="Re-enter your password"
-          autoComplete="new-password"
-          icon={BiLockAlt}
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-        />
+          <AuthInput
+            id="signUpDesignation"
+            name="designation"
+            label="Designation"
+            type="text"
+            placeholder="e.g. Nurse, Doctor"
+            autoComplete="organization-title"
+            required={false}
+            icon={BiBriefcase}
+            value={designation}
+            onChange={(e) => setDesignation(e.target.value)}
+          />
+        </div>
+
+        <div className="auth-grid-2">
+          <PasswordInput
+            id="signUpPassword"
+            name="password"
+            label="Password"
+            placeholder="Min. 8 chars"
+            autoComplete="new-password"
+            icon={BiLockAlt}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          <PasswordInput
+            id="signUpConfirm"
+            name="confirmPassword"
+            label="Confirm password"
+            placeholder="Re-enter password"
+            autoComplete="new-password"
+            icon={BiLockAlt}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+        </div>
 
         <label className="auth-checkbox auth-checkbox--inline">
           <input

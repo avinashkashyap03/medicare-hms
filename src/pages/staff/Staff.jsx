@@ -6,6 +6,7 @@ import {
   BiLockAlt,
   BiPlus,
   BiSearch,
+  BiShield,
   BiTrash,
   BiUserCheck,
   BiUserCircle,
@@ -16,16 +17,20 @@ import Spinner from '@/components/ui/Spinner.jsx';
 import { useAuth } from '@/context/AuthContext.jsx';
 import { useModal } from '@/hooks/useModal.js';
 import { titleCase } from '@/utils/status.js';
-import { getRoleLabel, getStatusLabel } from '@/utils/auth.js';
+import { ASSIGNABLE_ROLES, getRoleLabel, getStatusLabel } from '@/utils/auth.js';
 import { fetchDepartments } from '@/services/departments.js';
 import {
   STAFF_STATUS_OPTIONS,
   addStaff,
+  adminRemoveStaff,
   approveStaff,
   deleteStaff,
+  fetchAllProfiles,
   fetchPendingProfiles,
   fetchStaffPage,
   getStaffStats,
+  removeStaffByUser,
+  setUserRole,
   setUserStatus,
   updateStaff,
 } from '@/services/staff.js';
@@ -45,10 +50,6 @@ const EMPTY_FORM = {
 };
 
 const DEFAULT_STATS = { total: 0, active: 0, onLeave: 0, inactive: 0 };
-
-// Initial assignable roles. Deliberately excludes admin (and the other
-// legacy roles) — the database function enforces the same whitelist.
-const APPROVAL_ROLES = ['staff', 'receptionist'];
 
 function formatDate(value) {
   if (!value) return '—';
@@ -92,12 +93,22 @@ function Staff() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [pendingAccounts, setPendingAccounts] = useState([]);
+  const [approvalsError, setApprovalsError] = useState('');
   const [approvalTarget, setApprovalTarget] = useState(null);
   const [approvalRole, setApprovalRole] = useState('receptionist');
   const [approvalReason, setApprovalReason] = useState('');
+  const [roleTarget, setRoleTarget] = useState(null);
+  const [roleValue, setRoleValue] = useState('staff');
+  const [roleReason, setRoleReason] = useState('');
   const [statusTarget, setStatusTarget] = useState(null);
   const [statusAction, setStatusAction] = useState('');
   const [statusReason, setStatusReason] = useState('');
+  const [activeTab, setActiveTab] = useState('staff');
+  const [allProfiles, setAllProfiles] = useState([]);
+  const [profilesSearch, setProfilesSearch] = useState('');
+  const [profilesStatus, setProfilesStatus] = useState('');
+  const [profilesLoading, setProfilesLoading] = useState(false);
+  const [profilesError, setProfilesError] = useState('');
   const aliveRef = useRef(true);
   const seqRef = useRef(0);
 
@@ -137,10 +148,16 @@ function Staff() {
     if (!isAdmin) return;
     try {
       const accounts = await fetchPendingProfiles();
-      if (aliveRef.current) setPendingAccounts(accounts);
+      if (aliveRef.current) {
+        setPendingAccounts(accounts);
+        setApprovalsError('');
+      }
     } catch (err) {
       console.error('Failed to load pending approvals:', err);
-      if (aliveRef.current) setPendingAccounts([]);
+      if (aliveRef.current) {
+        setPendingAccounts([]);
+        setApprovalsError(err?.message || 'Failed to load pending account approvals.');
+      }
     }
   }, [isAdmin]);
 
@@ -148,6 +165,31 @@ function Staff() {
     const t = setTimeout(loadApprovals, 0);
     return () => clearTimeout(t);
   }, [loadApprovals]);
+
+  // Every account (all profiles) — admin only. The RPC itself enforces
+  // the admin guard, so even a stale UI call cannot leak data.
+  const loadAllProfiles = useCallback(async () => {
+    if (!isAdmin) return;
+    setProfilesLoading(true);
+    setProfilesError('');
+    try {
+      const rows = await fetchAllProfiles();
+      if (aliveRef.current) setAllProfiles(rows);
+    } catch (err) {
+      console.error('Failed to load profiles:', err);
+      if (aliveRef.current) {
+        setAllProfiles([]);
+        setProfilesError(err?.message || 'Failed to load profiles.');
+      }
+    } finally {
+      if (aliveRef.current) setProfilesLoading(false);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    const t = setTimeout(loadAllProfiles, 0);
+    return () => clearTimeout(t);
+  }, [loadAllProfiles]);
 
   // Single source of truth for fetching — used on mount (via the effect
   // below) and after every mutation. `seqRef` guards against stale
@@ -282,7 +324,7 @@ function Staff() {
       setApprovalTarget(null);
       setApprovalReason('');
       setApprovalRole('receptionist');
-      await Promise.all([load(), loadApprovals()]);
+      await Promise.all([load(), loadApprovals(), loadAllProfiles()]);
     } catch (err) {
       console.error('Failed to approve account:', err);
       setError(err?.message || 'Failed to approve account.');
@@ -311,19 +353,66 @@ function Staff() {
     }
   };
 
-  const handleAccountStatus = async () => {
-    if (!statusTarget || !statusAction) return;
-    if (statusAction !== 'active' && !statusReason.trim()) return;
+  const handleAssignRole = async () => {
+    if (!roleTarget) return;
+    if (!roleReason.trim()) return;
     setSaving(true);
     setError('');
     setSuccess('');
     try {
-      await setUserStatus(statusTarget.id, statusAction, statusReason.trim());
-      setSuccess(`${statusTarget.name}'s account is now ${getStatusLabel(statusAction).toLowerCase()}.`);
+      await setUserRole(roleTarget.id, roleValue, roleReason.trim());
+      setSuccess(`${roleTarget.name}'s role is now ${getRoleLabel(roleValue)}.`);
+      setRoleTarget(null);
+      setRoleReason('');
+      await Promise.all([load(), loadApprovals(), loadAllProfiles()]);
+    } catch (err) {
+      console.error('Failed to change role:', err);
+      setError(err?.message || 'Failed to change role.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAccountStatus = async () => {
+    if (!statusTarget || !statusAction) return;
+    if (!statusReason.trim()) return;
+    setSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      if (statusAction === 'remove') {
+        if (statusTarget.user_id) {
+          // staff tab target has user_id; profiles tab target's id IS
+          // the profile id (same as staff.user_id).
+          const userId = statusTarget.user_id;
+          try {
+            // Preferred path: secure server-side RPC (deletes staff rows
+            // + deactivates login atomically, bypasses RLS quirks).
+            await adminRemoveStaff(userId, statusReason.trim());
+          } catch (rpcErr) {
+            // Fallback: RPC not applied yet — do both steps client-side.
+            if (rpcErr?.code !== 'PGRST202') throw rpcErr;
+            console.warn('admin_remove_staff RPC missing, using direct deletes:', rpcErr);
+            await removeStaffByUser(userId);
+            try {
+              await setUserStatus(userId, 'deactivated', statusReason.trim());
+            } catch (statusErr) {
+              console.warn('Staff removed but account deactivation failed:', statusErr);
+            }
+          }
+        } else {
+          // No linked login account — just delete the staff row.
+          await deleteStaff(statusTarget.id);
+        }
+        setSuccess(`${statusTarget.name} has been permanently removed.`);
+      } else {
+        await setUserStatus(statusTarget.id, statusAction, statusReason.trim());
+        setSuccess(`${statusTarget.name}'s account is now ${getStatusLabel(statusAction).toLowerCase()}.`);
+      }
       setStatusTarget(null);
       setStatusAction('');
       setStatusReason('');
-      await Promise.all([load(), loadApprovals()]);
+      await Promise.all([load(), loadApprovals(), loadAllProfiles()]);
     } catch (err) {
       console.error('Failed to update account status:', err);
       setError(err?.message || 'Failed to update account status.');
@@ -337,6 +426,18 @@ function Staff() {
     for (let i = 1; i <= totalPages; i += 1) opts.push(i);
     return opts;
   }, [totalPages]);
+
+  // Client-side filter for the All Profiles tab — the list is small
+  // (one row per account), so the RPC returns everything and we filter.
+  const filteredProfiles = useMemo(() => {
+    const term = profilesSearch.trim().toLowerCase();
+    return allProfiles.filter((acc) => {
+      if (profilesStatus && acc.status !== profilesStatus) return false;
+      if (!term) return true;
+      return [acc.full_name, acc.email, acc.role, acc.phone, acc.designation]
+        .some((v) => String(v || '').toLowerCase().includes(term));
+    });
+  }, [allProfiles, profilesSearch, profilesStatus]);
 
   const summaryCards = [
     { label: 'Total Staff', value: stats.total, color: 'info', icon: BiGroup },
@@ -359,6 +460,31 @@ function Staff() {
         </button>
       </section>
 
+      {isAdmin && (
+        <div className="staff-tabs" role="tablist" aria-label="Staff views">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'staff'}
+            className={`staff-tab ${activeTab === 'staff' ? 'active' : ''}`}
+            onClick={() => setActiveTab('staff')}
+          >
+            Staff Members
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'profiles'}
+            className={`staff-tab ${activeTab === 'profiles' ? 'active' : ''}`}
+            onClick={() => setActiveTab('profiles')}
+          >
+            All Profiles
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'staff' && (
+        <>
       <section className="inv-summary">
         {summaryCards.map((c) => {
           const Icon = c.icon;
@@ -378,16 +504,23 @@ function Staff() {
 
       {error && <div className="page-alert page-alert--danger">{error}</div>}
       {success && <div className="page-alert page-alert--success">{success}</div>}
+      {isAdmin && approvalsError && (
+        <div className="page-alert page-alert--danger">{approvalsError}</div>
+      )}
 
       {isAdmin && pendingAccounts.length > 0 && (
-        <section className="card widget">
-          <div className="toolbar-row">
-            <div className="toolbar-search">
-              <BiHourglass />
-              <span className="approvals-title">
-                Pending Account Approvals
-                <small>{pendingAccounts.length} account{pendingAccounts.length > 1 ? 's' : ''} awaiting review</small>
+        <section className="card widget approvals-panel">
+          <div className="widget-head">
+            <div className="approvals-head">
+              <span className="approvals-head-icon" aria-hidden="true">
+                <BiHourglass />
               </span>
+              <div>
+                <h2 className="widget-title">Pending Account Approvals</h2>
+                <p className="widget-subtitle">
+                  {pendingAccounts.length} account{pendingAccounts.length > 1 ? 's' : ''} waiting for a role and activation
+                </p>
+              </div>
             </div>
           </div>
           <div className="table-scroll">
@@ -414,7 +547,9 @@ function Staff() {
                       </div>
                     </td>
                     <td>{acc.email || '—'}</td>
-                    <td>{getRoleLabel(acc.role)}</td>
+                    <td>
+                      <span className="role-pill">{getRoleLabel(acc.role)}</span>
+                    </td>
                     <td>{formatDate(acc.created_at)}</td>
                     <td>
                       <div className="row-actions">
@@ -498,6 +633,7 @@ function Staff() {
                 <tr>
                   <th>Staff</th>
                   <th>Designation</th>
+                  <th>Role</th>
                   <th>Department</th>
                   <th>Shift</th>
                   <th>Contact</th>
@@ -510,7 +646,7 @@ function Staff() {
               <tbody>
                 {staffList.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="empty-cell muted">
+                    <td colSpan={10} className="empty-cell muted">
                       {debouncedSearch || filterDept
                         ? 'No staff match your filters.'
                         : 'No staff yet. Click "New Staff" to add one.'}
@@ -538,6 +674,13 @@ function Staff() {
                           </div>
                         </td>
                         <td className="strong">{member.designation}</td>
+                        <td>
+                          {member.profiles?.role ? (
+                            <span className="role-pill">{getRoleLabel(member.profiles.role)}</span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                         <td>{member.departments?.name || '—'}</td>
                         <td>{member.shift || '—'}</td>
                         <td>{member.phone || '—'}</td>
@@ -550,6 +693,23 @@ function Staff() {
                         </td>
                         <td>
                           <div className="row-actions">
+                            {isAdmin && member.user_id && member.user_id !== user?.id && (
+                              <button
+                                type="button"
+                                className="icon-btn--sm"
+                                aria-label={`Change role for ${member.name}`}
+                                title="Change role"
+                                onClick={() => {
+                                  setRoleTarget({ id: member.user_id, name: member.name });
+                                  setRoleValue(member.profiles?.role || 'staff');
+                                  setRoleReason('');
+                                  setError('');
+                                  setSuccess('');
+                                }}
+                              >
+                                <BiShield />
+                              </button>
+                            )}
                             {isAdmin && member.user_id && (
                               <button
                                 type="button"
@@ -637,6 +797,133 @@ function Staff() {
           </div>
         )}
       </section>
+      </>
+      )}
+
+      {isAdmin && activeTab === 'profiles' && (
+        <section className="card widget">
+          <div className="toolbar-row">
+            <div className="toolbar-search">
+              <BiSearch />
+              <input
+                type="search"
+                value={profilesSearch}
+                onChange={(e) => setProfilesSearch(e.target.value)}
+                placeholder="Search by name, email, role, phone or designation..."
+              />
+            </div>
+            <div className="toolbar-filters">
+              <select
+                className="toolbar-filter"
+                value={profilesStatus}
+                onChange={(e) => setProfilesStatus(e.target.value)}
+                aria-label="Filter by account status"
+              >
+                <option value="">All statuses</option>
+                {['pending', 'active', 'suspended', 'deactivated'].map((s) => (
+                  <option key={s} value={s}>{getStatusLabel(s)}</option>
+                ))}
+              </select>
+              <span className="toolbar-count">{filteredProfiles.length} total</span>
+            </div>
+          </div>
+
+          {profilesLoading ? (
+            <div className="loader-center loader-center--padded">
+              <Spinner />
+            </div>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Account</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Phone</th>
+                    <th>Designation</th>
+                    <th>Signed Up</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProfiles.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="empty-cell muted">
+                        {profilesError || 'No accounts match your filters.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredProfiles.map((acc) => (
+                      <tr key={acc.id}>
+                        <td>
+                          <div className="cell-patient">
+                            <span className="initials">{initials(acc.full_name)}</span>
+                            <div className="patient-info">
+                              <strong>{acc.full_name}</strong>
+                            </div>
+                          </div>
+                        </td>
+                        <td>{acc.email || '—'}</td>
+                        <td>
+                          <span className="role-pill">{getRoleLabel(acc.role)}</span>
+                        </td>
+                        <td>{acc.phone || '—'}</td>
+                        <td>{acc.designation || '—'}</td>
+                        <td>{formatDate(acc.created_at)}</td>
+                        <td>
+                          <span className={`account-status-pill ${acc.status}`}>
+                            {getStatusLabel(acc.status)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="row-actions">
+                            {acc.id !== user?.id && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="icon-btn--sm"
+                                  aria-label={`Change role for ${acc.full_name}`}
+                                  title="Change role"
+                                  onClick={() => {
+                                    setRoleTarget({ id: acc.id, name: acc.full_name });
+                                    setRoleValue(acc.role || 'staff');
+                                    setRoleReason('');
+                                    setError('');
+                                    setSuccess('');
+                                  }}
+                                >
+                                  <BiShield />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="icon-btn--sm"
+                                  aria-label={`Manage account for ${acc.full_name}`}
+                                  title="Manage account status"
+                                  onClick={() => {
+                                     setStatusTarget({ id: acc.id, user_id: acc.id, name: acc.full_name });
+                                    setStatusAction(acc.status === 'suspended' ? 'active' : 'suspended');
+                                    setStatusReason('');
+                                    setError('');
+                                    setSuccess('');
+                                  }}
+                                >
+                                  <BiLockAlt />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       {isOpen && (
         <Modal open onClose={close} header={editing ? `Edit ${editing.name}` : 'New Staff Member'} size="lg" blocked={saving}>
@@ -744,7 +1031,7 @@ function Staff() {
           <label className="form-field">
             <span>Role</span>
             <select value={approvalRole} onChange={(e) => setApprovalRole(e.target.value)} disabled={saving}>
-              {APPROVAL_ROLES.map((r) => (
+              {ASSIGNABLE_ROLES.map((r) => (
                 <option key={r} value={r}>{getRoleLabel(r)}</option>
               ))}
             </select>
@@ -799,6 +1086,41 @@ function Staff() {
         </Modal>
       )}
 
+      {roleTarget && (
+        <Modal open onClose={() => setRoleTarget(null)} header={`Change role — ${roleTarget.name}`} showClose={false} size="sm" variant="alertdialog" blocked={saving}>
+          <p className="modal-body-text">
+            Assign a login role for <strong>{roleTarget.name}</strong>. This applies immediately.
+          </p>
+          <label className="form-field">
+            <span>Role</span>
+            <select value={roleValue} onChange={(e) => setRoleValue(e.target.value)} disabled={saving}>
+              {ASSIGNABLE_ROLES.map((r) => (
+                <option key={r} value={r}>{getRoleLabel(r)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span>Reason *</span>
+            <textarea
+              rows={2}
+              value={roleReason}
+              onChange={(e) => setRoleReason(e.target.value)}
+              placeholder="e.g. Moved to front desk as receptionist"
+              disabled={saving}
+            />
+          </label>
+          {error && <div className="page-alert page-alert--danger">{error}</div>}
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => setRoleTarget(null)} disabled={saving}>
+              Cancel
+            </button>
+            <button type="button" className="btn-primary" onClick={handleAssignRole} disabled={saving || !roleReason.trim()}>
+              {saving ? 'Saving...' : 'Save Role'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {statusTarget && (
         <Modal open onClose={() => setStatusTarget(null)} header={`Manage ${statusTarget.name}'s Account`} showClose={false} size="sm" variant="alertdialog" blocked={saving}>
           <label className="form-field">
@@ -807,20 +1129,24 @@ function Staff() {
               <option value="active">Active</option>
               <option value="suspended">Suspended</option>
               <option value="deactivated">Deactivated</option>
+              <option value="remove">Remove (Delete Permanently)</option>
             </select>
           </label>
-          {statusAction !== 'active' && (
-            <label className="form-field">
-              <span>Reason *</span>
-              <textarea
-                rows={2}
-                value={statusReason}
-                onChange={(e) => setStatusReason(e.target.value)}
-                placeholder="e.g. Repeated late arrivals, resigned"
-                disabled={saving}
-              />
-            </label>
+          {statusAction === 'remove' && (
+            <p className="modal-body-text" style={{ color: 'var(--danger, #dc2626)', marginTop: '-0.5rem' }}>
+              Warning: this deletes the staff record permanently AND deactivates the login account. This cannot be undone.
+            </p>
           )}
+          <label className="form-field">
+            <span>Reason *</span>
+            <textarea
+              rows={2}
+              value={statusReason}
+              onChange={(e) => setStatusReason(e.target.value)}
+              placeholder="e.g. Reactivating after leave / Suspending for policy violation / Reason for permanent removal"
+              disabled={saving}
+            />
+          </label>
           {error && <div className="page-alert page-alert--danger">{error}</div>}
           <div className="modal-actions">
             <button type="button" className="btn-ghost" onClick={() => setStatusTarget(null)} disabled={saving}>
@@ -828,11 +1154,11 @@ function Staff() {
             </button>
             <button
               type="button"
-              className={statusAction === 'active' ? 'btn-primary' : 'btn-danger'}
+              className={statusAction === 'remove' ? 'btn-danger' : statusAction === 'active' ? 'btn-primary' : 'btn-danger'}
               onClick={handleAccountStatus}
-              disabled={saving || (statusAction !== 'active' && !statusReason.trim())}
+              disabled={saving || !statusReason.trim()}
             >
-              {saving ? 'Saving...' : titleCase(statusAction)}
+              {saving ? 'Saving...' : statusAction === 'remove' ? 'Remove Permanently' : titleCase(statusAction)}
             </button>
           </div>
         </Modal>

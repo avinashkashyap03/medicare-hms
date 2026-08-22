@@ -48,10 +48,11 @@ set search_path = public
 as $$
 declare
   r public.user_role;
+  caller_status public.account_status;
 begin
-  select p.role into r
+  select p.role, p.status into r, caller_status
   from public.profiles p
-  where p.id = auth.uid() and p.status = 'active';
+  where p.id = auth.uid();
 
   if r is null then
     return false;
@@ -59,6 +60,10 @@ begin
 
   if r = 'admin' then
     return true;
+  end if;
+
+  if caller_status <> 'active' then
+    return false;
   end if;
 
   -- Receptionist: strictly front-desk, read-mostly operations.

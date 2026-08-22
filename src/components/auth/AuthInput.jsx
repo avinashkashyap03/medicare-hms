@@ -23,7 +23,7 @@ function AuthInput({
           id={id}
           name={name}
           type={type}
-          className="auth-input"
+          className={`auth-input${children ? ' auth-input--toggled' : ''}`}
           placeholder={placeholder}
           value={value}
           onChange={onChange}

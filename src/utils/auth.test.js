@@ -6,6 +6,7 @@ import {
   isAdminRole,
   getRoleLabel,
   getStatusLabel,
+  ASSIGNABLE_ROLES,
 } from '@/utils/auth.js';
 
 describe('validatePassword', () => {
@@ -108,6 +109,17 @@ describe('getRoleLabel', () => {
     expect(getRoleLabel('superadmin')).toBe('User');
     expect(getRoleLabel(null)).toBe('User');
     expect(getRoleLabel(undefined)).toBe('User');
+  });
+
+  it('lists every role an admin can assign from Staff', () => {
+    expect(ASSIGNABLE_ROLES).toEqual([
+      'staff',
+      'receptionist',
+      'doctor',
+      'nurse',
+      'pharmacist',
+      'admin',
+    ]);
   });
 });
 
